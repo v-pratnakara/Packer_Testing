@@ -4,19 +4,19 @@ on:
   workflow_dispatch:  # Allows manual trigger
     inputs:
       source_rg:
-        description: "rg-packer-acg"
+        description: "Source Resource Group"
         required: true
       source_gallery:
-        description: "AzurepackerImages"
+        description: "Source Shared Image Gallery"
         required: true
       destination_region:
-        description: "West US"
+        description: "Destination Region"
         required: true
       image_name:
-        description: "win2019dcx64"
+        description: "Image Definition Name"
         required: true
       subscription_id:
-        description: "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
+        description: "Azure Subscription ID"
         required: true
 
 jobs:
