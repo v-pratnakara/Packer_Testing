@@ -1,0 +1,72 @@
+name: Move N-2 Old Image Versions to Secondary Gallery
+
+on:
+  workflow_dispatch:  # Allows manual trigger
+    inputs:
+      source_rg:
+        description: "rg-packer-acg"
+        required: true
+      source_gallery:
+        description: "AzurepackerImages"
+        required: true
+      destination_region:
+        description: "West US"
+        required: true
+      image_name:
+        description: "win2019dcx64"
+        required: true
+      subscription_id:
+        description: "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
+        required: true
+
+jobs:
+  move-old-images:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Authenticate to Azure
+        uses: azure/login@v2
+        with:
+          auth-type: IDENTITY
+          client-id: ${{ secrets.AZURE_CLIENT_ID1 }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID1 }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID1 }}
+
+      - name: Get Image Versions from Source Gallery
+        run: |
+          IMAGE_VERSIONS=$(az sig image-version list \
+            --resource-group ${{ inputs.source_rg }} \
+            --gallery-name ${{ inputs.source_gallery }} \
+            --gallery-image-definition ${{ inputs.image_name }} \
+            --query "[].name" --output tsv | sort -V)
+
+          echo "IMAGE_VERSIONS=$IMAGE_VERSIONS" >> $GITHUB_ENV
+
+      - name: Move N-2 Old Image Versions to Secondary Gallery
+        run: |
+          VERSION_LIST=($IMAGE_VERSIONS)
+          TOTAL_VERSIONS=${#VERSION_LIST[@]}
+          KEEP_VERSIONS=2
+
+          if (( TOTAL_VERSIONS > KEEP_VERSIONS )); then
+            for (( i=0; i<TOTAL_VERSIONS-KEEP_VERSIONS; i++ )); do
+              VERSION=${VERSION_LIST[$i]}
+              echo "Moving old image version: $VERSION"
+
+              az sig image-version update \
+                --resource-group ${{ inputs.source_rg }} \
+                --gallery-name ${{ inputs.source_gallery }} \
+                --gallery-image-definition ${{ inputs.image_name }} \
+                --gallery-image-version $VERSION \
+                --target-region ${{ inputs.destination_region }} \
+                --replica-count 1 \
+                --subscription ${{ inputs.subscription_id }}
+
+              echo "Successfully moved image version: $VERSION"
+            done
+          else
+            echo "Not enough versions to move. Keeping the latest $KEEP_VERSIONS versions."
+          fi
