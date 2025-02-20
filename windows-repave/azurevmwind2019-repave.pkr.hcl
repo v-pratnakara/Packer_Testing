@@ -25,6 +25,7 @@ source "azure-arm" "windowsimage-2019-repave" {
   temp_os_disk_name  = "win2019-osdisk-poc"
   #security_type = "TrustedLaunch"
 
+
   #Define the network 
   virtual_network_resource_group_name = "Test_VM"
   virtual_network_name                = "v-network"
