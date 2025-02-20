@@ -1,6 +1,9 @@
 build {
     sources = [ "source.azure-arm.windowsimage-2019" ]
 
+  provisioner "windows-update" {
+   }
+
  # Provisioner: Install IIS (as an example)
   provisioner "powershell" {
     inline = [
