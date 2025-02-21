@@ -46,27 +46,15 @@ jobs:
 
           # Loop through each image version
           foreach ($ImageVersion in $ImageVersions) {
-              Write-Host "🔹 Fetching Managed Image for $ImageVersion..."
+              Write-Host "🔹 Moving Image Version: $ImageVersion to Archive SIG..."
 
-              # Get the managed image ID associated with this version
-              $ManagedImageId = az sig image-version show --resource-group $SourceResourceGroup `
-                  --gallery-name $SourceSIG --gallery-image-definition $SourceImageDef `
-                  --gallery-image-version $ImageVersion --query "publishingProfile.source.id" -o tsv
-
-              if (-not $ManagedImageId) {
-                  Write-Host "❌ No managed image found for version $ImageVersion, skipping..."
-                  continue
-              }
-
-              Write-Host "🔹 Creating Archived Image Version: $ImageVersion..."
-
-              # Create the new image version in the Archive SIG
+              # Copy the image version from source SIG to target SIG
               az sig image-version create --subscription $SubscriptionId `
                   --resource-group $TargetResourceGroup `
                   --gallery-name $TargetSIG `
                   --gallery-image-definition $TargetImageDef `
                   --gallery-image-version $ImageVersion `
-                  --managed-image $ManagedImageId `
+                  --source "/subscriptions/$SubscriptionId/resourceGroups/$SourceResourceGroup/providers/Microsoft.Compute/galleries/$SourceSIG/images/$SourceImageDef/versions/$ImageVersion" `
                   --location $Location `
                   --target-regions eastus=1 `
                   --storage-account-type Standard_LRS
@@ -80,7 +68,3 @@ jobs:
           }
 
           Write-Host "🎉 Archive process completed successfully!"
-
-    - name: Notify on Failure
-      if: failure()
-      run: echo "❌ Image archival process failed!"  
