@@ -25,7 +25,7 @@ jobs:
       shell: pwsh
       run: |
           # Set Azure Subscription ID
-          $SUBSCRIPTION_ID = "<your_subscription_id>"
+          $SUBSCRIPTION_ID = "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
 
           # Source (win2019 SIG)
           $SOURCE_RG = "rg-packer-acg"
