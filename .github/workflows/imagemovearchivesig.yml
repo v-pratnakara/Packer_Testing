@@ -22,64 +22,65 @@ jobs:
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID1 }}
 
     - name: Move the last two oldest image versions to Archive SIG
+      shell: pwsh
       run: |
           # Set Azure Subscription ID
-          SUBSCRIPTION_ID="1901eaa9-e98f-49b6-ac39-b1cd55defe19"
+          $SUBSCRIPTION_ID = "<your_subscription_id>"
 
-          # Source (Production SIG)
-          SOURCE_RG="rg-packer-acg"
-          SOURCE_SIG="AzurepackerImages"
-          SOURCE_IMAGE_DEF="win2019x64-repave"
+          # Source (win2019 SIG)
+          $SOURCE_RG = "rg-packer-acg"
+          $SOURCE_SIG = "AzurepackerImages"
+          $SOURCE_IMAGE_DEF = "win2019x64-repave"
 
           # Target (Archive SIG)
-          TARGET_RG="rg-packer-acg"
-          TARGET_SIG="AzurepackerImages"
-          TARGET_IMAGE_DEF="win2019x64-archive"
+          $TARGET_RG = "rg-packer-acg"
+          $TARGET_SIG = "AzurepackerImages"
+          $TARGET_IMAGE_DEF = "win2019x64-archive"
 
           # Fetch the oldest two image versions
-          IMAGE_VERSIONS=($(az sig image-version list --resource-group $SOURCE_RG \
-              --gallery-name $SOURCE_SIG --gallery-image-definition $SOURCE_IMAGE_DEF \
-              --query "sort_by([].{name:name, createdTime:publishingProfile.publishedDate}, &createdTime)[].name" -o tsv | head -n 2))
+          $imageVersions = az sig image-version list --resource-group $SOURCE_RG `
+            --gallery-name $SOURCE_SIG --gallery-image-definition $SOURCE_IMAGE_DEF `
+            --query "sort_by([].{name:name, createdTime:publishingProfile.publishedDate}, &createdTime)[].name" -o tsv |
+            Select-String -Pattern '.*' | Select-Object -First 2
 
-          # Check if there are at least two image versions to move
-          if [ ${#IMAGE_VERSIONS[@]} -lt 2 ]; then
-              echo "Less than two image versions found. Skipping archival."
+          if ($imageVersions.Count -lt 2) {
+              Write-Host "Less than two image versions found. Skipping archival."
               exit 0
-          fi
+          }
 
-          for IMAGE_VERSION in "${IMAGE_VERSIONS[@]}"; do
-              echo "🔹 Moving Image Version: $IMAGE_VERSION from $SOURCE_SIG to $TARGET_SIG..."
+          foreach ($IMAGE_VERSION in $imageVersions) {
+              Write-Host "Moving Image Version: $IMAGE_VERSION from $SOURCE_SIG to $TARGET_SIG..."
 
-              az sig image-version create --subscription $SUBSCRIPTION_ID \
-                  --resource-group $TARGET_RG \
-                  --gallery-name $TARGET_SIG \
-                  --gallery-image-definition $TARGET_IMAGE_DEF \
-                  --gallery-image-version $IMAGE_VERSION \
+              az sig image-version create --subscription $SUBSCRIPTION_ID `
+                  --resource-group $TARGET_RG `
+                  --gallery-name $TARGET_SIG `
+                  --gallery-image-definition $TARGET_IMAGE_DEF `
+                  --gallery-image-version $IMAGE_VERSION `
                   --source "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$SOURCE_RG/providers/Microsoft.Compute/galleries/$SOURCE_SIG/images/$SOURCE_IMAGE_DEF/versions/$IMAGE_VERSION"
 
               # Verify Copy
-              echo "🔍 Verifying copied image version $IMAGE_VERSION..."
-              az sig image-version show --subscription $SUBSCRIPTION_ID \
-                  --resource-group $TARGET_RG \
-                  --gallery-name $TARGET_SIG \
-                  --gallery-image-definition $TARGET_IMAGE_DEF \
-                  --gallery-image-version $IMAGE_VERSION \
+              Write-Host "Verifying copied image version $IMAGE_VERSION..."
+              $verify = az sig image-version show --subscription $SUBSCRIPTION_ID `
+                  --resource-group $TARGET_RG `
+                  --gallery-name $TARGET_SIG `
+                  --gallery-image-definition $TARGET_IMAGE_DEF `
+                  --gallery-image-version $IMAGE_VERSION `
                   --query "id" -o tsv
 
-              if [ $? -eq 0 ]; then
-                  echo "✅ Successfully copied Image Version: $IMAGE_VERSION"
+              if ($verify) {
+                  Write-Host "✅ Successfully copied Image Version: $IMAGE_VERSION"
 
                   # Optional: Delete Source Image Version after successful copy
-                  # echo "🗑️ Deleting old image version from Production SIG..."
-                  # az sig image-version delete --subscription $SUBSCRIPTION_ID \
-                  #     --resource-group $SOURCE_RG \
-                  #     --gallery-name $SOURCE_SIG \
-                  #     --gallery-image-definition $SOURCE_IMAGE_DEF \
+                  # Write-Host "Deleting old image version from Production SIG..."
+                  # az sig image-version delete --subscription $SUBSCRIPTION_ID `
+                  #     --resource-group $SOURCE_RG `
+                  #     --gallery-name $SOURCE_SIG `
+                  #     --gallery-image-definition $SOURCE_IMAGE_DEF `
                   #     --gallery-image-version $IMAGE_VERSION
-                  # echo "✅ Deleted Image Version: $IMAGE_VERSION from Production SIG."
-              else
-                  echo "❌ Failed to copy Image Version: $IMAGE_VERSION"
-              fi
-          done
+                  # Write-Host "Deleted Image Version: $IMAGE_VERSION from Production SIG."
+              } else {
+                  Write-Host "Failed to copy Image Version: $IMAGE_VERSION"
+              }
+          }
 
-          echo "🎉 Archive process completed for the last two oldest image versions!"
+          Write-Host "Archive process completed for the last two oldest image versions!"
