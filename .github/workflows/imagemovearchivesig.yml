@@ -24,63 +24,63 @@ jobs:
     - name: Move the last two oldest image versions to Archive SIG
       shell: pwsh
       run: |
-          # Set Azure Subscription ID
-          $SUBSCRIPTION_ID = "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
+          # Set Azure Subscription and Resource Group
+          $SubscriptionId = "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
+          $SourceResourceGroup = "rg-packer-acg"
+          $SourceSIG = "AzurepackerImages"
+          $SourceImageDef = "win2019x64-repave"
 
-          # Source (win2019 SIG)
-          $SOURCE_RG = "rg-packer-acg"
-          $SOURCE_SIG = "AzurepackerImages"
-          $SOURCE_IMAGE_DEF = "win2019x64-repave"
+          $TargetResourceGroup = "rg-packer-acg"
+          $TargetSIG = "AzurepackerImages"
+          $TargetImageDef = "win2019x64-archive"
+          $Location = "eastus"
 
-          # Target (Archive SIG)
-          $TARGET_RG = "rg-packer-acg"
-          $TARGET_SIG = "AzurepackerImages"
-          $TARGET_IMAGE_DEF = "win2019x64-archive"
+          # Authenticate and set subscription
+          az account set --subscription $SubscriptionId
 
-          # Fetch the oldest two image versions
-          $imageVersions = az sig image-version list --resource-group $SOURCE_RG `
-            --gallery-name $SOURCE_SIG --gallery-image-definition $SOURCE_IMAGE_DEF `
-            --query "sort_by([].{name:name, createdTime:publishingProfile.publishedDate}, &createdTime)[].name" -o tsv |
-            Select-String -Pattern '.*' | Select-Object -First 2
+          # Get the last two oldest image versions from the source SIG
+          $ImageVersions = az sig image-version list --resource-group $SourceResourceGroup `
+              --gallery-name $SourceSIG --gallery-image-definition $SourceImageDef `
+              --query "sort_by([].{name:name, createdTime:publishingProfile.publishedDate}, &createdTime)[].name" -o tsv `
+              | Select-Object -First 2
 
-          if ($imageVersions.Count -lt 2) {
-              Write-Host "Less than two image versions found. Skipping archival."
-              exit 0
-          }
+          # Loop through each image version
+          foreach ($ImageVersion in $ImageVersions) {
+              Write-Host "🔹 Fetching Managed Image for $ImageVersion..."
 
-          foreach ($IMAGE_VERSION in $imageVersions) {
-              Write-Host "Moving Image Version: $IMAGE_VERSION from $SOURCE_SIG to $TARGET_SIG..."
+              # Get the managed image ID associated with this version
+              $ManagedImageId = az sig image-version show --resource-group $SourceResourceGroup `
+                  --gallery-name $SourceSIG --gallery-image-definition $SourceImageDef `
+                  --gallery-image-version $ImageVersion --query "publishingProfile.source.id" -o tsv
 
-              az sig image-version create --subscription $SUBSCRIPTION_ID `
-                  --resource-group $TARGET_RG `
-                  --gallery-name $TARGET_SIG `
-                  --gallery-image-definition $TARGET_IMAGE_DEF `
-                  --gallery-image-version $IMAGE_VERSION `
-                  --source "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$SOURCE_RG/providers/Microsoft.Compute/galleries/$SOURCE_SIG/images/$SOURCE_IMAGE_DEF/versions/$IMAGE_VERSION"
-
-              # Verify Copy
-              Write-Host "Verifying copied image version $IMAGE_VERSION..."
-              $verify = az sig image-version show --subscription $SUBSCRIPTION_ID `
-                  --resource-group $TARGET_RG `
-                  --gallery-name $TARGET_SIG `
-                  --gallery-image-definition $TARGET_IMAGE_DEF `
-                  --gallery-image-version $IMAGE_VERSION `
-                  --query "id" -o tsv
-
-              if ($verify) {
-                  Write-Host "✅ Successfully copied Image Version: $IMAGE_VERSION"
-
-                  # Optional: Delete Source Image Version after successful copy
-                  # Write-Host "Deleting old image version from Production SIG..."
-                  # az sig image-version delete --subscription $SUBSCRIPTION_ID `
-                  #     --resource-group $SOURCE_RG `
-                  #     --gallery-name $SOURCE_SIG `
-                  #     --gallery-image-definition $SOURCE_IMAGE_DEF `
-                  #     --gallery-image-version $IMAGE_VERSION
-                  # Write-Host "Deleted Image Version: $IMAGE_VERSION from Production SIG."
-              } else {
-                  Write-Host "Failed to copy Image Version: $IMAGE_VERSION"
+              if (-not $ManagedImageId) {
+                  Write-Host "❌ No managed image found for version $ImageVersion, skipping..."
+                  continue
               }
+
+              Write-Host "🔹 Creating Archived Image Version: $ImageVersion..."
+
+              # Create the new image version in the Archive SIG
+              az sig image-version create --subscription $SubscriptionId `
+                  --resource-group $TargetResourceGroup `
+                  --gallery-name $TargetSIG `
+                  --gallery-image-definition $TargetImageDef `
+                  --gallery-image-version $ImageVersion `
+                  --managed-image $ManagedImageId `
+                  --location $Location `
+                  --target-regions eastus=1 `
+                  --storage-account-type Standard_LRS
+
+              if ($LASTEXITCODE -ne 0) {
+                  Write-Host "❌ Failed to copy Image Version: $ImageVersion"
+                  exit 1
+              }
+
+              Write-Host "✅ Successfully moved $ImageVersion to Archive SIG."
           }
 
-          Write-Host "Archive process completed for the last two oldest image versions!"
+          Write-Host "🎉 Archive process completed successfully!"
+
+    - name: Notify on Failure
+      if: failure()
+      run: echo "❌ Image archival process failed!"  
