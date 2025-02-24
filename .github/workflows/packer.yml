@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - test
+      
 jobs:
   packer:
     name: Build windows & Linux images and Publish Images to ASIG
