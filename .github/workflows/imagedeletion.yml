@@ -2,7 +2,7 @@ name: Clean Up Old Images in Azure Image Gallery
 
 on:
   schedule:
-    - cron: "00 10 * * 2"  # Runs every Tuesday at 10:00 UTC
+    - cron: "00 16 * * 2"  # Runs every Tuesday at 10:00 UTC
   #workflow_dispatch:  # Allows manual execution
 
 jobs:
