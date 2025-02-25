@@ -34,8 +34,8 @@ source "azure-arm" "windowsimage-2019-repave" {
     # Source image
   shared_image_gallery {
     subscription   = "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
-    gallery_name   = "AzurepackerImages"
-    image_name     = "win2019dcx64"
+    gallery_name   = "AzurepackerImages"  ##Azure Shared Gallery name
+    image_name     = "win2019dcx64"      ## Image definition name
     image_version  = "latest"
     resource_group = "rg-packer-acg"
   }

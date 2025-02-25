@@ -19,13 +19,20 @@ data "azurerm_subnet" "example" {
   virtual_network_name = data.azurerm_virtual_network.example-vnet.name
   resource_group_name  = data.azurerm_resource_group.example.name
 }
-#Fetch the Existing Image Definition and Version details
+#Fetch the Existing Image Definition and Latest Image Version
 data "azurerm_shared_image" "example-sig" {
-  name                = "windDc2022"
-  gallery_name        = "AzurepackerImages"
-  resource_group_name = "rg-packer-acg"
-  #version             = "1.0.0"
+  name                = "windDc2022"       ## Image definition name
+  gallery_name        = "AzurepackerImages" ##Azure Shared Gallery name
+  resource_group_name = "rg-packer-acg"   ##Resource group name
 }
+
+data "azurerm_shared_image_version" "example" {
+  name                = "1.0.0"
+  image_name          = "my-image"
+  gallery_name        = "my-image-gallery"
+  resource_group_name = "example-resources"
+}
+
 #Create Network Interface card 
 resource "azurerm_network_interface" "example-nic" {
   name                = "packerimgdemo-nic"
