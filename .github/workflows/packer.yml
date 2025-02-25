@@ -10,10 +10,10 @@ jobs:
     name: Build windows & Linux images and Publish Images to ASIG
     runs-on: self-hosted
     env:
-      #ROOT_PATH : '${{github.workspace}}/windows2019'
+      ROOT_PATH : '${{github.workspace}}/windows2019'
       #ROOT_PATH : '${{github.workspace}}/RHEL'
       #ROOT_PATH : '${{github.workspace}}/windows2022'
-      ROOT_PATH : '${{github.workspace}}/windows-repave' # If we run this OS, it will build both Windows 2019 and Windows 2022 images
+      #ROOT_PATH : '${{github.workspace}}/windows-repave' # If we run this OS, it will build both Windows 2019 and Windows 2022 images
 
     permissions:
       id-token: write

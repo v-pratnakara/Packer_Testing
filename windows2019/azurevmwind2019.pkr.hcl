@@ -29,7 +29,7 @@ source "azure-arm" "windowsimage-2019" {
   virtual_network_resource_group_name = "Test_VM"
   virtual_network_name                = "v-network"
   virtual_network_subnet_name         = "subnet1"
-  #shared_gallery_image_version_end_of_life_date = "2025-02-19T13:00:05.99Z"
+  shared_gallery_image_version_end_of_life_date = "2025-03-05T13:00:05.99Z"
 
 
   ### Build Image publish to Target Azure compute galleries###
