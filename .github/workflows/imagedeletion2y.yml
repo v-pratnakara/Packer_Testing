@@ -13,8 +13,8 @@ jobs:
     env:
       IMAGE_GALLERY: "AzurepackerImages"
       RESOURCE_GROUP: "rg-packer-acg"
-      IMAGE_DEFINITION: "win2019dcx64"
-      RETENTION_DAYS: 2  # Number of days before deletion
+      IMAGE_DEFINITION: "linux8x64"
+      RETENTION_DAYS: 7  # Number of days before deletion
 
     permissions:
       id-token: write
