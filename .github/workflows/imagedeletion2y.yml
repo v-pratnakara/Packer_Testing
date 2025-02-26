@@ -1,0 +1,68 @@
+name: Clean Up Old Images in Azure Image Gallery
+
+on:
+  schedule:
+    - cron: "45 11 * * 2"  # Runs every Tuesday at 10:45 UTC
+  workflow_dispatch:  # Allows manual execution
+
+jobs:
+  cleanup:
+    name: Delete Image Versions Older Than 735 Days
+    runs-on: self-hosted
+
+    env:
+      IMAGE_GALLERY: "AzurepackerImages"
+      RESOURCE_GROUP: "rg-packer-acg"
+      IMAGE_DEFINITION: "win2019dcx64"
+      RETENTION_DAYS: 735  # Number of days before deletion
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Authenticate to Azure
+        uses: azure/login@v2
+        with:
+          auth-type: IDENTITY
+          client-id: ${{ secrets.AZURE_CLIENT_ID1 }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID1 }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID1 }}
+
+      - name: Fetch and Delete Old Image Versions
+        shell: pwsh
+        run: |
+            Write-Output "Fetching image versions..."
+            $imageVersions = az sig image-version list `
+              --resource-group $env:RESOURCE_GROUP `
+              --gallery-name $env:IMAGE_GALLERY `
+              --gallery-image-definition $env:IMAGE_DEFINITION `
+              --query "[].{version:name, createdTime:publishingProfile.publishedDate}" `
+              --output json | ConvertFrom-Json
+            
+            $currentDate = Get-Date
+            $retentionDays = [int]$env:RETENTION_DAYS
+            $thresholdDate = $currentDate.AddDays(-$retentionDays)
+            
+            Write-Output "Checking for images older than $retentionDays days (Before: $thresholdDate)"
+            
+            foreach ($image in $imageVersions) {
+                $imageVersion = $image.version
+                $createdDate = [datetime]$image.createdTime
+
+                if ($createdDate -lt $thresholdDate) {
+                    Write-Output "Deleting version: $imageVersion (Created: $createdDate)"
+                    az sig image-version delete `
+                      --resource-group $env:RESOURCE_GROUP `
+                      --gallery-name $env:IMAGE_GALLERY `
+                      --gallery-image-definition $env:IMAGE_DEFINITION `
+                      --gallery-image-version $imageVersion
+                } else {
+                    Write-Output "Keeping version: $imageVersion (Created: $createdDate)"
+                }
+            }
+            
+            Write-Output "Image cleanup completed."
