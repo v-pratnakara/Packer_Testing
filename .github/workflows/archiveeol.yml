@@ -5,24 +5,28 @@ on:
     - cron: "0 0 * * *"  # Runs daily at midnight UTC
   workflow_dispatch:  # Allows manual trigger
 
-
+env:
+  IMAGE_GALLERY: "AzurepackerImages"
+  RESOURCE_GROUP: "rg-packer-acg"
+  IMAGE_DEFINITION: "linux8x64"
 
 jobs:
   archive-image:
     runs-on: self-hosted
 
-    env:
-       IMAGE_GALLERY: "AzurepackerImages"
-       RESOURCE_GROUP: "rg-packer-acg"
-       IMAGE_DEFINITION: "linux8x64"
 
+    env:
+      IMAGE_GALLERY: "AzurepackerImages"
+      RESOURCE_GROUP: "rg-packer-acg"
+      IMAGE_DEFINITION: "linux8x64"
+     
     permissions:
       id-token: write
       contents: read
-         
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
 
       - name: Authenticate to Azure
         uses: azure/login@v2
@@ -32,6 +36,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID1 }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID1 }}
 
+     
 
       - name: Archive Expired Image Versions
         shell: pwsh
@@ -53,11 +58,13 @@ jobs:
               if ($endOfLifeDate -ne "" -and $endOfLifeDate -lt $currentDate) {
                   Write-Output "Archiving image version: $version of $imageDefinition"
 
-                  # Get existing tags as a PowerShell object
+                  # Get existing tags as a JSON string
                   $existingTagsJson = az sig image-version show --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --name $version --query "tags" -o json
-                  $existingTags = @{}
-                  
-                  if ($existingTagsJson -ne "null" -and $existingTagsJson -ne "") {
+
+                  # Handle null or empty tags
+                  if ($existingTagsJson -eq "null" -or [string]::IsNullOrEmpty($existingTagsJson)) {
+                      $existingTags = @{}
+                  } else {
                       $existingTags = ConvertFrom-Json $existingTagsJson
                   }
 
