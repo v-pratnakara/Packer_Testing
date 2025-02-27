@@ -4,7 +4,7 @@ on:
   workflow_dispatch:  # Allows manual trigger
 
 env:
-  AZURE_SUBSCRIPTION_ID: "your-subscription-id"
+  AZURE_SUBSCRIPTION_ID: "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
   SOURCE_RESOURCE_GROUP: "rg-packer-acg"
   DESTINATION_RESOURCE_GROUP: "Test_VM"
   GALLERY_NAME: "AzurepackerImages"
@@ -12,15 +12,15 @@ env:
   LOCATION: "West US"
 
 permissions:
-     id-token: write
-     contents: read
+  id-token: write
+  contents: read
 
 jobs:
   export-sig-images:
     runs-on: self-hosted
     steps:
 
-      # Step 1: Login to Azure
+      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v2
 
@@ -35,44 +35,53 @@ jobs:
       # Step 2: Get Image Versions from SIG
       - name: Get Image Versions
         id: get-versions
+        shell: pwsh
         run: |
-              $IMAGE_VERSIONS = az sig image-version list `
-              --resource-group $env:SOURCE_RESOURCE_GROUP `
-                --gallery-name $env:GALLERY_NAME `
-               --gallery-image-definition $env:IMAGE_DEFINITION `
-                  --query "[].{version:name}" `
-                 --output tsv | Sort-Object
+          $IMAGE_VERSIONS = az sig image-version list `
+            --resource-group $env:SOURCE_RESOURCE_GROUP `
+            --gallery-name $env:GALLERY_NAME `
+            --gallery-image-definition $env:IMAGE_DEFINITION `
+            --query "[].name" -o tsv | Sort-Object
 
-                   Write-Output "Image Versions Found:"
-                Write-Output "$IMAGE_VERSIONS"
-  
-                   $count = ($IMAGE_VERSIONS -split "`n").Count
-                   Write-Output "Total versions: $count"
+          if (-not $IMAGE_VERSIONS) {
+            Write-Output "No image versions found!"
+            exit 1
+          }
+
+          Write-Output "Image Versions Found:"
+          Write-Output $IMAGE_VERSIONS
+
+          # Store image versions for the next step
+          echo "::set-output name=image_versions::$IMAGE_VERSIONS"
 
       # Step 3: Create Managed Disks for Each Image Version
       - name: Create Managed Disks
+        shell: pwsh
         run: |
-          
-          foreach ($IMAGE_VERSION in $IMAGE_VERSIONS -split "`r`n") {
-            $DISK_NAME = "ManagedDisk-$IMAGE_VERSION"
-            Write-Output "Creating Managed Disk for image version: $IMAGE_VERSION"
+          $IMAGE_VERSIONS = "${{ steps.get-versions.outputs.image_versions }}"
 
-            
-            az disk create `
-              --resource-group $env:DESTINATION_RESOURCE_GROUP `
-              --name $DISK_NAME `
-              --location $env:LOCATION `
-              --gallery-image-reference "/subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/$env:SOURCE_RESOURCE_GROUP/providers/Microsoft.Compute/galleries/$env:GALLERY_NAME/images/$env:IMAGE_DEFINITION/versions/$IMAGE_VERSION"
-          done
+          foreach ($IMAGE_VERSION in $IMAGE_VERSIONS -split "`r`n") {
+            if ($IMAGE_VERSION -ne "") {
+              $DISK_NAME = "ManagedDisk-$IMAGE_VERSION"
+              Write-Output "Creating Managed Disk for image version: $IMAGE_VERSION"
+
+              az disk create `
+                --resource-group $env:DESTINATION_RESOURCE_GROUP `
+                --name $DISK_NAME `
+                --location $env:LOCATION `
+                --gallery-image-reference "/subscriptions/${{ env.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.SOURCE_RESOURCE_GROUP }}/providers/Microsoft.Compute/galleries/${{ env.GALLERY_NAME }}/images/${{ env.IMAGE_DEFINITION }}/versions/$IMAGE_VERSION"
+            }
+          }
 
       # Step 4: Move Managed Disks to Another Resource Group
       - name: Move Managed Disks
+        shell: pwsh
         run: |
-          DISK_IDS=$(az disk list --resource-group $DESTINATION_RESOURCE_GROUP --query "[].id" -o tsv)
-          
-          if [ -n "$DISK_IDS" ]; then
-            echo "Moving Managed Disks to Resource Group: $DESTINATION_RESOURCE_GROUP..."
-            az resource move --destination-group $DESTINATION_RESOURCE_GROUP --ids $DISK_IDS
-          else
-            echo "No disks found to move."
-          fi
+          $DISK_IDS = az disk list --resource-group $env:DESTINATION_RESOURCE_GROUP --query "[].id" -o tsv
+
+          if ($DISK_IDS -ne "") {
+            Write-Output "Moving Managed Disks to Resource Group: $env:DESTINATION_RESOURCE_GROUP..."
+            az resource move --destination-group $env:DESTINATION_RESOURCE_GROUP --ids $DISK_IDS
+          } else {
+            Write-Output "No disks found to move."
+          }
