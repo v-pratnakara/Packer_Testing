@@ -81,15 +81,15 @@ jobs:
             }
           }
 
-      # Step 4: Move Managed Disks to Another Resource Group
-      - name: Move Managed Disks
-        shell: pwsh
-        run: |
-          $DISK_IDS = az disk list --resource-group $env:DESTINATION_RESOURCE_GROUP --query "[].id" -o tsv
+    #   # Step 4: Move Managed Disks to Another Resource Group
+    #   - name: Move Managed Disks
+    #     shell: pwsh
+    #     run: |
+    #       $DISK_IDS = az disk list --resource-group $env:DESTINATION_RESOURCE_GROUP --query "[].id" -o tsv
 
-          if ($DISK_IDS -ne "") {
-            Write-Output "Moving Managed Disks to Resource Group: $env:DESTINATION_RESOURCE_GROUP..."
-            az resource move --destination-group $env:DESTINATION_RESOURCE_GROUP --ids $DISK_IDS
-          } else {
-            Write-Output "No disks found to move."
-          }
+    #       if ($DISK_IDS -ne "") {
+    #         Write-Output "Moving Managed Disks to Resource Group: $env:DESTINATION_RESOURCE_GROUP..."
+    #         az resource move --destination-group $env:DESTINATION_RESOURCE_GROUP --ids $DISK_IDS
+    #       } else {
+    #         Write-Output "No disks found to move."
+    #       }
