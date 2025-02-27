@@ -44,7 +44,7 @@ jobs:
                  --output tsv | Sort-Object
 
                    Write-Output "Image Versions Found:"
-                Write-Output "$$IMAGE_VERSIONS"
+                Write-Output "$IMAGE_VERSIONS"
   
                    $count = ($$IMAGE_VERSIONS -split "`n").Count
                    Write-Output "Total versions: $count
