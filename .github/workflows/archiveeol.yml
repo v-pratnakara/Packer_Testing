@@ -35,53 +35,54 @@ jobs:
       - name: Archive Expired Image Versions
         shell: pwsh
         run: |
-          $resourceGroup = "${{ env.RESOURCE_GROUP }}"
-          $galleryName = "${{ env.IMAGE_GALLERY }}"
-          $imageDefinition = "${{ env.IMAGE_DEFINITION }}"
-
-          # Get current date in UTC format
-          $currentDate = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
-
-          # Get all versions of the specified image definition
-          $imageVersions = az sig image-version list --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --query "[].name" -o tsv
-
-          foreach ($version in $imageVersions) {
-              $version = $version.Trim()  # Ensure no spaces
-
-              # Get End of Life Date
-              $endOfLifeDate = az sig image-version show --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --gallery-image-version "$version" --query "endOfLifeDate" -o tsv
-
-              if ($endOfLifeDate -ne "" -and $endOfLifeDate -lt $currentDate) {
-                  Write-Output "Archiving image version: $version of $imageDefinition"
-
-                  # Get existing tags as a JSON string
-                  $existingTagsJson = az sig image-version show --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --gallery-image-version "$version" --query "tags" -o json
-
-                  # Debugging Output
-                  Write-Output "Debug: Existing Tags JSON -> $existingTagsJson"
-
-                  # Handle null, empty, or array-type response
-                  if ($existingTagsJson -eq "null" -or [string]::IsNullOrEmpty($existingTagsJson)) {
-                      $existingTags = @{}
-                  } elseif ($existingTagsJson -match "^\[.*\]$") {
-                      # If the response is an array, extract the first element
-                      $existingTags = ($existingTagsJson | ConvertFrom-Json)[0]
-                  } else {
-                      $existingTags = ConvertFrom-Json $existingTagsJson
-                  }
-
-                  # Ensure $existingTags is a hashtable (dictionary)
-                  if ($existingTags -isnot [Hashtable]) {
-                      $existingTags = @{}
-                  }
-
-                  # Add or update the "status" tag to "archived"
-                  $existingTags["status"] = "archived"
-
-                  # Convert tags back to JSON format for Azure CLI
-                  $updatedTagsJson = ($existingTags | ConvertTo-Json -Compress -Depth 3)
-
-                  # Apply the updated tags
-                  az sig image-version update --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --gallery-image-version "$version" --set tags="$updatedTagsJson"
-              }
-          }
+            $resourceGroup = "${{ env.RESOURCE_GROUP }}"
+            $galleryName = "${{ env.IMAGE_GALLERY }}"
+            $imageDefinition = "${{ env.IMAGE_DEFINITION }}"
+  
+            # Get current date in UTC format
+            $currentDate = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
+  
+            # Get all image versions
+            $imageVersions = az sig image-version list --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --query "[].name" -o tsv
+  
+            foreach ($version in $imageVersions) {
+                $version = $version.Trim()  # Ensure there are no extra spaces
+  
+                # Get End of Life Date
+                $endOfLifeDate = az sig image-version show --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --gallery-image-version "$version" --query "endOfLifeDate" -o tsv
+  
+                if ($endOfLifeDate -ne "" -and $endOfLifeDate -lt $currentDate) {
+                    Write-Output "Archiving image version: $version of $imageDefinition"
+  
+                    # Get existing tags as a JSON string
+                    $existingTagsJson = az sig image-version show --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --gallery-image-version "$version" --query "tags" -o json
+  
+                    # Debugging Output
+                    Write-Output "Debug: Existing Tags JSON -> $existingTagsJson"
+  
+                    # Handle null, empty, or array-type response
+                    if ($existingTagsJson -eq "null" -or [string]::IsNullOrEmpty($existingTagsJson)) {
+                        $existingTags = @{}
+                    } elseif ($existingTagsJson -match "^\[.*\]$") {
+                        # If the response is an array, extract the first element
+                        $existingTags = ($existingTagsJson | ConvertFrom-Json)[0]
+                    } else {
+                        $existingTags = ConvertFrom-Json $existingTagsJson
+                    }
+  
+                    # Ensure $existingTags is a hashtable (dictionary)
+                    if ($existingTags -isnot [Hashtable]) {
+                        $existingTags = @{}
+                    }
+  
+                    # Add or update the "status" tag to "archived"
+                    $existingTags["status"] = "archived"
+  
+                    # Convert tags back to JSON format for Azure CLI
+                    $updatedTagsJson = ($existingTags | ConvertTo-Json -Compress -Depth 3)
+  
+                    # Apply the updated tags
+                    az sig image-version update --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --gallery-image-version "$version" --set tags="$updatedTagsJson"
+                }
+            }
+  
