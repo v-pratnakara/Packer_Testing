@@ -55,13 +55,13 @@ jobs:
 
           foreach ($version in $imageVersions) {
               # Get End of Life Date
-              $endOfLifeDate = az sig image-version show --resource-group $env:RESOURCE_GROUP --gallery-name $env:IMAGE_GALLERY --gallery-image-definition $env:IMAGE_DEFINITION --name $version --query "endOfLifeDate" -o tsv
+              $endOfLifeDate = az sig image-version show --resource-group $env:RESOURCE_GROUP --gallery-name $env:IMAGE_GALLERY --gallery-image-definition $env:IMAGE_DEFINITION --gallery-image-version $version --query "endOfLifeDate" -o tsv
               
               if ($endOfLifeDate -ne "" -and $endOfLifeDate -lt $currentDate) {
                   Write-Output "Archiving image version: $version of $env:IMAGE_DEFINITION"
 
                   # Get existing tags as a JSON string
-                  $existingTagsJson = az sig image-version show --resource-group $env:RESOURCE_GROUP --gallery-name $env:IMAGE_GALLERY --gallery-image-definition $env:IMAGE_DEFINITION --name $version --query "tags" -o json
+                  $existingTagsJson = az sig image-version show --resource-group $env:RESOURCE_GROUP --gallery-name $env:IMAGE_GALLERY --gallery-image-definition $env:IMAGE_DEFINITION --gallery-image-version --query "tags" -o json
 
                   # Handle null or empty tags
                   if ($existingTagsJson -eq "null" -or [string]::IsNullOrEmpty($existingTagsJson)) {
