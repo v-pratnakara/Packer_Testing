@@ -9,7 +9,7 @@ on:
 
 jobs:
   archive-image:
-    runs-on: windows-latest
+    runs-on: self-hosted
 
     env:
        IMAGE_GALLERY: "AzurepackerImages"
