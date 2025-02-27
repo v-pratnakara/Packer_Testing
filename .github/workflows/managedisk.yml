@@ -36,12 +36,12 @@ jobs:
       - name: Get Image Versions
         id: get-versions
         run: |
-          IMAGE_VERSIONS=$(az sig image-version list \
-            --resource-group $SOURCE_RESOURCE_GROUP \
-            --gallery-name $GALLERY_NAME \
-            --gallery-image-definition $IMAGE_DEFINITION \
-            --query "[].name" -o tsv)
-          echo "IMAGE_VERSIONS=$IMAGE_VERSIONS" >> $GITHUB_ENV
+              $IMAGE_VERSIONS = az sig image-version list `
+              --resource-group $env:SOURCE_RESOURCE_GROUP `
+                --gallery-name $env:GALLERY_NAME `
+               --gallery-image-definition $env:IMAGE_DEFINITION `
+                   --query "[].name" -o tsv
+
 
       # Step 3: Create Managed Disks for Each Image Version
       - name: Create Managed Disks
