@@ -52,15 +52,17 @@ jobs:
       # Step 3: Create Managed Disks for Each Image Version
       - name: Create Managed Disks
         run: |
-          for IMAGE_VERSION in $IMAGE_VERSIONS; do
-            DISK_NAME="ManagedDisk-$IMAGE_VERSION"
-            echo "Creating Managed Disk from $IMAGE_VERSION..."
+          
+          foreach ($IMAGE_VERSION in $IMAGE_VERSIONS -split "`r`n") {
+            $DISK_NAME = "ManagedDisk-$IMAGE_VERSION"
+            Write-Output "Creating Managed Disk for image version: $IMAGE_VERSION"
+
             
-            az disk create \
-              --resource-group $DESTINATION_RESOURCE_GROUP \
-              --name $DISK_NAME \
-              --location $LOCATION \
-              --gallery-image-reference "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$SOURCE_RESOURCE_GROUP/providers/Microsoft.Compute/galleries/$GALLERY_NAME/images/$IMAGE_DEFINITION/versions/$IMAGE_VERSION"
+            az disk create `
+              --resource-group $env:DESTINATION_RESOURCE_GROUP `
+              --name $DISK_NAME `
+              --location $env:LOCATION `
+              --gallery-image-reference "/subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/$env:SOURCE_RESOURCE_GROUP/providers/Microsoft.Compute/galleries/$env:GALLERY_NAME/images/$env:IMAGE_DEFINITION/versions/$IMAGE_VERSION"
           done
 
       # Step 4: Move Managed Disks to Another Resource Group
