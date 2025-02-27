@@ -8,6 +8,7 @@ source "azure-arm" "rhel_image" {
     purpose     = "Infra Deployment"
     task        = "packerimages"
     osverison   = "RedhatLinux"
+    status      = ""
   }
 
   # Specify the base image
