@@ -40,7 +40,14 @@ jobs:
               --resource-group $env:SOURCE_RESOURCE_GROUP `
                 --gallery-name $env:GALLERY_NAME `
                --gallery-image-definition $env:IMAGE_DEFINITION `
-                   --query "[].name" -o tsv
+                  --query "[].{version:name}" `
+                 --output tsv | Sort-Object
+
+                   Write-Output "Image Versions Found:"
+                Write-Output "$$IMAGE_VERSIONS"
+  
+                   $count = ($$IMAGE_VERSIONS -split "`n").Count
+                   Write-Output "Total versions: $count
 
 
       # Step 3: Create Managed Disks for Each Image Version
