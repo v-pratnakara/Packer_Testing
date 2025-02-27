@@ -6,6 +6,7 @@ source "azure-arm" "windowsimage-2019" {
     email       = "v-pratnakara@microsoft.com"
     purpose     = "Infra Deployment"
     task        = "packerimages"
+    status      = ""
   }
 
   ##Source Images details###

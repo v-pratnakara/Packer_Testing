@@ -63,11 +63,11 @@ jobs:
                     # Handle null, empty, or array-type response
                     if ($existingTagsJson -eq "null" -or [string]::IsNullOrEmpty($existingTagsJson)) {
                         $existingTags = @{}
-                    } elseif ($existingTagsJson -match "^\[.*\]$") {
-                        # If the response is an array, extract the first element
-                        $existingTags = ($existingTagsJson | ConvertFrom-Json)[0]
+                    } elseif ($existingTagsJson.StartsWith("[") -and $existingTagsJson.EndsWith("]")) {
+                        # If the response is an array, convert the first element
+                        $existingTags = ($existingTagsJson | ConvertFrom-Json)[0] | ConvertTo-Json -Compress
                     } else {
-                        $existingTags = ConvertFrom-Json $existingTagsJson
+                        $existingTags = $existingTagsJson | ConvertFrom-Json
                     }
   
                     # Ensure $existingTags is a hashtable (dictionary)
