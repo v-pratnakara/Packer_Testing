@@ -63,9 +63,6 @@ jobs:
                     # Handle null, empty, or array-type response
                     if ($existingTagsJson -eq "null" -or [string]::IsNullOrEmpty($existingTagsJson)) {
                         $existingTags = @{}
-                    } elseif ($existingTagsJson.StartsWith("[") -and $existingTagsJson.EndsWith("]")) {
-                        # If the response is an array, convert the first element
-                        $existingTags = ($existingTagsJson | ConvertFrom-Json)[0] | ConvertTo-Json -Compress
                     } else {
                         $existingTags = $existingTagsJson | ConvertFrom-Json
                     }
@@ -78,11 +75,11 @@ jobs:
                     # Add or update the "status" tag to "archived"
                     $existingTags["status"] = "archived"
   
-                    # Convert tags back to JSON format for Azure CLI
-                    $updatedTagsJson = ($existingTags | ConvertTo-Json -Compress -Depth 3)
+                    # Convert tags to a JSON object, ensuring it's formatted correctly
+                    $updatedTagsJson = $existingTags | ConvertTo-Json -Compress -Depth 3
   
-                    # Apply the updated tags
-                    az sig image-version update --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --gallery-image-version "$version" --set tags="$updatedTagsJson"
+                    # Apply the updated tags correctly
+                    az sig image-version update --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --gallery-image-version "$version" --set tags=$updatedTagsJson
                 }
             }
   
