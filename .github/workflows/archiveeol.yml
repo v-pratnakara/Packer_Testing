@@ -1,26 +1,20 @@
-name: Archive Expired Image Versions
+name: Cleanup Azure Image Gallery
 
 on:
   schedule:
-    - cron: "0 0 * * *"  # Runs daily at midnight UTC
-  workflow_dispatch:  # Allows manual trigger
+    - cron: "0 5 * * 2"  # Runs every Tuesday at 5 AM UTC
+  workflow_dispatch:  # Allows manual execution
 
 jobs:
-  archive-image:
+  cleanup:
     runs-on: self-hosted
 
-
-    env:
-      IMAGE_GALLERY: "AzurepackerImages"
-      RESOURCE_GROUP: "rg-packer-acg"
-      IMAGE_DEFINITION: "win2019dcx64"
-     
     permissions:
       id-token: write
       contents: read
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v2
 
       - name: Authenticate to Azure
@@ -31,55 +25,66 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID1 }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID1 }}
 
-
-      - name: Archive Expired Image Versions
+      - name: Run Cleanup Task (PowerShell)
         shell: pwsh
         run: |
-            $resourceGroup = "${{ env.RESOURCE_GROUP }}"
-            $galleryName = "${{ env.IMAGE_GALLERY }}"
-            $imageDefinition = "${{ env.IMAGE_DEFINITION }}"
-  
-            # Get current date in UTC format
-            $currentDate = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
-  
-            # Get all image versions
-            $imageVersions = az sig image-version list --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --query "[].name" -o tsv
-  
-            foreach ($version in $imageVersions) {
-                $version = $version.Trim()  # Ensure there are no extra spaces
-  
-                # Get End of Life Date
-                $endOfLifeDate = az sig image-version show --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --gallery-image-version "$version" --query "endOfLifeDate" -o tsv
-  
-                if ($endOfLifeDate -ne "" -and $endOfLifeDate -lt $currentDate) {
-                    Write-Output "Archiving image version: $version of $imageDefinition"
-  
-                    # Get existing tags as a JSON string
-                    $existingTagsJson = az sig image-version show --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --gallery-image-version "$version" --query "tags" -o json
-  
-                    # Debugging Output
-                    Write-Output "Debug: Existing Tags JSON -> $existingTagsJson"
-  
-                    # Handle null, empty, or array-type response
-                    if ($existingTagsJson -eq "null" -or [string]::IsNullOrEmpty($existingTagsJson)) {
-                        $existingTags = @{}
-                    } else {
-                        $existingTags = $existingTagsJson | ConvertFrom-Json
-                    }
-  
-                    # Ensure $existingTags is a hashtable (dictionary)
-                    if ($existingTags -isnot [Hashtable]) {
-                        $existingTags = @{}
-                    }
-  
-                    # Add or update the "status" tag to "archived"
-                    $existingTags["status"] = "archived"
-  
-                    # Convert tags to a JSON object, ensuring it's formatted correctly
-                    $updatedTagsJson = $existingTags | ConvertTo-Json -Compress -Depth 3
-  
-                    # Apply the updated tags correctly
-                    az sig image-version update --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --gallery-image-version "$version" --set tags=$updatedTagsJson
-                }
-            }
-  
+          # Define variables directly inside the script
+          $resourceGroup = "rg-packer-acg"
+          $galleryName = "AzurepackerImages"
+          $imageDefinition = "linux8x64"
+          $safeDays = 70   # Retain images for 70 days after publishing
+          $maxRetentionDays = 735   # Delete images older than 735 days
+
+          Write-Output "Fetching image versions from Azure Image Gallery..."
+
+          # Fetch image versions from Azure
+          $imageVersions = az sig image-version list `
+              --resource-group $resourceGroup `
+              --gallery-name $galleryName `
+              --gallery-image-definition $imageDefinition `
+              --query "[].{version:name, createdTime:publishingProfile.publishedDate}" `
+              --output json | ConvertFrom-Json
+
+          $currentDate = Get-Date
+          $thresholdDelete = $currentDate.AddDays(-$safeDays)
+          $thresholdMaxDelete = $currentDate.AddDays(-$maxRetentionDays)
+
+          Write-Output "Images published within the last $safeDays days are safe."
+          Write-Output "Checking for images older than $maxRetentionDays days (Before: $thresholdMaxDelete)..."
+
+          # Sort images by creation date (latest first)
+          $imageVersions = $imageVersions | Sort-Object -Property createdTime -Descending
+
+          # Keep the two most recent images (N & N-1)
+          $latestImages = $imageVersions[0..1]
+
+          foreach ($image in $imageVersions) {
+              $imageVersion = $image.version
+              $createdDate = [datetime]$image.createdTime
+
+              # Skip the latest two versions
+              if ($latestImages -contains $image) {
+                  Write-Output "Skipping latest retained version: $imageVersion (Created: $createdDate)"
+                  continue
+              }
+
+              # Ensure images published within the last 70 days are not deleted
+              if ($createdDate -gt $thresholdDelete) {
+                  Write-Output "Keeping image version: $imageVersion (Created: $createdDate) - Within 70 days"
+                  continue
+              }
+
+              # Delete images older than 735 days
+              if ($createdDate -lt $thresholdMaxDelete) {
+                  Write-Output "Deleting image version: $imageVersion (Created: $createdDate) - Exceeds 735 days retention"
+                  az sig image-version delete `
+                      --resource-group $resourceGroup `
+                      --gallery-name $galleryName `
+                      --gallery-image-definition $imageDefinition `
+                      --gallery-image-version $imageVersion
+              } else {
+                  Write-Output "Keeping image version: $imageVersion (Created: $createdDate) - Within retention period"
+              }
+          }
+
+          Write-Output "Image cleanup completed."

@@ -1,0 +1,21 @@
+{
+  "mode": "All",
+  "policyRule": {
+    "if": {
+      "allOf": [
+        {
+          "field": "Microsoft.Compute/virtualMachines/storageProfile.imageReference.id",
+          "exists": "true"
+        },
+        {
+          "field": "Microsoft.Compute/galleries/images/versions/publishingProfile.endOfLifeDate",
+          "less": "[utcNow()]"
+        }
+      ]
+    },
+    "then": {
+      "effect": "Deny"
+    }
+  },
+  "parameters": {}
+}

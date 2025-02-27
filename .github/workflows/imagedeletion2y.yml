@@ -2,7 +2,7 @@ name: Ren735Days-Clean Up Old Images in Azure Image Gallery
 
 on:
   schedule:
-    - cron: "45 11 * * 2"  # Runs every Tuesday at 10:45 UTC
+    - cron: "45 11 * * 2"  # Runs every Tuesday at 11:45 UTC
   workflow_dispatch:  # Allows manual execution
 
 jobs:
