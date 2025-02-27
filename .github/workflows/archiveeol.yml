@@ -1,0 +1,67 @@
+name: Archive Expired Image Version
+
+on:
+  schedule:
+    - cron: "0 0 * * *"  # Runs daily at midnight UTC
+  workflow_dispatch:  # Allows manual trigger
+
+env:
+  IMAGE_GALLERY: "AzurepackerImages"
+  RESOURCE_GROUP: "rg-packer-acg"
+  IMAGE_DEFINITION: "linux8x64"
+
+jobs:
+  archive-image:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Azure
+        uses: azure/login@v2
+        with:
+          auth-type: IDENTITY
+          client-id: ${{ secrets.AZURE_CLIENT_ID1 }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID1 }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID1 }}
+
+
+      - name: Archive Expired Image Versions
+        shell: pwsh
+        run: |
+          $resourceGroup = "${{ env.RESOURCE_GROUP }}"
+          $galleryName = "${{ env.IMAGE_GALLERY }}"
+          $imageDefinition = "${{ env.IMAGE_DEFINITION }}"
+
+          # Get current date in UTC format
+          $currentDate = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
+
+          # Get all versions of the specified image definition
+          $imageVersions = az sig image-version list --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --query "[].name" -o tsv
+
+          foreach ($version in $imageVersions) {
+              # Get End of Life Date
+              $endOfLifeDate = az sig image-version show --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --name $version --query "endOfLifeDate" -o tsv
+              
+              if ($endOfLifeDate -ne "" -and $endOfLifeDate -lt $currentDate) {
+                  Write-Output "Archiving image version: $version of $imageDefinition"
+
+                  # Get existing tags as a PowerShell object
+                  $existingTagsJson = az sig image-version show --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --name $version --query "tags" -o json
+                  $existingTags = @{}
+                  
+                  if ($existingTagsJson -ne "null" -and $existingTagsJson -ne "") {
+                      $existingTags = ConvertFrom-Json $existingTagsJson
+                  }
+
+                  # Add or update the "status" tag to "archived"
+                  $existingTags["status"] = "archived"
+
+                  # Convert tags back to JSON format for Azure CLI
+                  $updatedTagsJson = ($existingTags | ConvertTo-Json -Compress -Depth 3)
+
+                  # Apply the updated tags
+                  az sig image-version update --resource-group $resourceGroup --gallery-name $galleryName --gallery-image-definition $imageDefinition --name $version --set tags=$updatedTagsJson
+              }
+          }

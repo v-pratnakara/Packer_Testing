@@ -1,4 +1,4 @@
-name: Clean Up Old Images in Azure Image Gallery
+name: Ren735Days-Clean Up Old Images in Azure Image Gallery
 
 on:
   schedule:
@@ -14,7 +14,7 @@ jobs:
       IMAGE_GALLERY: "AzurepackerImages"
       RESOURCE_GROUP: "rg-packer-acg"
       IMAGE_DEFINITION: "linux8x64"
-      RETENTION_DAYS: 7  # Number of days before deletion
+      RETENTION_DAYS: 735  # Number of days before deletion
 
     permissions:
       id-token: write
