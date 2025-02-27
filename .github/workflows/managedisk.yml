@@ -49,7 +49,6 @@ jobs:
                    $count = ($$IMAGE_VERSIONS -split "`n").Count
                    Write-Output "Total versions: $count
 
-
       # Step 3: Create Managed Disks for Each Image Version
       - name: Create Managed Disks
         run: |
