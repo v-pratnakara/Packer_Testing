@@ -62,8 +62,16 @@ jobs:
 
           foreach ($IMAGE_VERSION in $IMAGE_VERSIONS -split "`r`n") {
             if ($IMAGE_VERSION -ne "") {
-              $DISK_NAME = "ManagedDisk-$IMAGE_VERSION"
-              Write-Output "Creating Managed Disk for image version: $IMAGE_VERSION"
+              # Replace dots with hyphens and remove spaces
+              $SANITIZED_VERSION = $IMAGE_VERSION -replace "\.", "-" -replace " ", ""
+              
+              # Ensure disk name is within 64 characters
+              $DISK_NAME = "ManagedDisk-$SANITIZED_VERSION"
+              if ($DISK_NAME.Length -gt 64) {
+                $DISK_NAME = $DISK_NAME.Substring(0, 64)
+              }
+
+              Write-Output "Creating Managed Disk for image version: $IMAGE_VERSION as $DISK_NAME"
 
               az disk create `
                 --resource-group $env:DESTINATION_RESOURCE_GROUP `
