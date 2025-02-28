@@ -1,4 +1,4 @@
-name: Archive Old Azure Images to Managed Disks
+name:  cron 5th Archive Old Azure Images to Managed Disks
 
 on:
   schedule:
@@ -67,10 +67,16 @@ jobs:
           $IMAGE_VERSIONS = $env:IMAGE_VERSIONS -split ","
 
           foreach ($IMAGE_VERSION in $IMAGE_VERSIONS) {
-            # Ensure disk name is valid (remove special characters)
-            $DISK_NAME = "ManagedDisk-$($IMAGE_VERSION -replace '[^a-zA-Z0-9]', '')"
+            if ([string]::IsNullOrWhiteSpace($IMAGE_VERSION)) {
+                Write-Error "Image version is empty or null!"
+                exit 1
+            }
+
+            # Remove invalid characters and enforce length constraint
+            $DISK_NAME = "ManagedDisk-$($IMAGE_VERSION -replace '[^a-zA-Z0-9-]', '')"
             $DISK_NAME = $DISK_NAME.Substring(0, [System.Math]::Min($DISK_NAME.Length, 80))
-            Write-Output "Creating Managed Disk for image version: $IMAGE_VERSION"
+            
+            Write-Output "Creating Managed Disk with name: $DISK_NAME"
 
             az disk create `
               --resource-group $env:DESTINATION_RESOURCE_GROUP `
