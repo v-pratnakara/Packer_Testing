@@ -1,10 +1,10 @@
-name: old 70 dyas-Export SIG Image Versions to Managed Disks
+name: Export SIG Image Versions to Managed Disks
 
 on:
   workflow_dispatch:  # Allows manual trigger
 
 env:
-  AZURE_SUBSCRIPTION_ID: "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
+  AZURE_SUBSCRIPTION_ID: "your-subscription-id"
   SOURCE_RESOURCE_GROUP: "rg-packer-acg"
   DESTINATION_RESOURCE_GROUP: "Test_VM"
   GALLERY_NAME: "AzurepackerImages"
@@ -20,9 +20,11 @@ jobs:
     runs-on: self-hosted
     steps:
 
+      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      # Step 2: Authenticate to Azure
       - name: Authenticate to Azure
         uses: azure/login@v2
         with:
@@ -31,66 +33,72 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID1 }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID1 }}
 
-      - name: Get Image Versions (Older than 70 Days)
+      # Step 3: Get Image Versions Published in the Last 70 Days
+      - name: Get Image Versions
+        id: get-versions
         shell: pwsh
         run: |
-          # Fetch all image versions with their published dates
-          $image_versions = az sig image-version list `
+          # Calculate date threshold (70 days ago)
+          $thresholdDate = (Get-Date).AddDays(-70).ToString("yyyy-MM-dd")
+
+          # Fetch all image versions and filter based on published date
+          $image_versions_json = az sig image-version list `
             --resource-group $env:SOURCE_RESOURCE_GROUP `
             --gallery-name $env:GALLERY_NAME `
             --gallery-image-definition $env:IMAGE_DEFINITION `
-            --query "[].{version:name, publishedDate:publishingProfile.publishedDate}" `
+            --query "[].{version:name, published:publishingProfile.publishedDate}" `
             --output json | ConvertFrom-Json
 
-          # Get the date 70 days ago
-          $date_threshold = (Get-Date).AddDays(-70)
-
-          # Filter only versions published before this date
-          $filtered_versions = $image_versions | Where-Object { 
-            (Get-Date $_.publishedDate) -lt $date_threshold
+          # Filter versions based on threshold date
+          $filtered_versions = @()
+          foreach ($image in $image_versions_json) {
+            if ($image.published -gt $thresholdDate) {
+              $filtered_versions += $image.version
+            }
           }
 
-          if (-not $filtered_versions) {
-            Write-Output "No image versions older than 70 days found."
-            exit 0  # Exit successfully if nothing to process
+          # Check if we have valid versions
+          if ($filtered_versions.Count -eq 0) {
+            Write-Error "No images found that are published within the last 70 days!"
+            exit 1
           }
 
-          # Extract version names and store in environment
-          $version_list = $filtered_versions.version -join ","
-          Add-Content -Path $env:GITHUB_ENV -Value "IMAGE_VERSIONS=$version_list"
+          # Convert to comma-separated format and store in GitHub environment
+          $IMAGE_VERSIONS = $filtered_versions -join ","
+          echo "IMAGE_VERSIONS=$IMAGE_VERSIONS" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-          Write-Output "Filtered Image Versions (Older than 70 Days):"
-          $filtered_versions | ForEach-Object { Write-Output $_.version }
+          Write-Output "Filtered Image Versions: $IMAGE_VERSIONS"
 
-      - name: Create Managed Disks for Each Version
+      # Step 4: Create Managed Disks for Each Image Version
+      - name: Create Managed Disks
         shell: pwsh
         run: |
-            # Retrieve filtered image versions from environment
-            $IMAGE_VERSIONS = $env:IMAGE_VERSIONS -split ","
-        
-            foreach ($IMAGE_VERSION in $IMAGE_VERSIONS) {
-              # Ensure IMAGE_VERSION is not empty
-              if ([string]::IsNullOrEmpty($IMAGE_VERSION)) {
-                Write-Error "Skipping empty image version entry."
-                continue
-              }
-        
-              # Sanitize disk name (Replace invalid characters)
-              $DISK_NAME = "ManagedDisk-$($IMAGE_VERSION -replace '[^a-zA-Z0-9-]', '-')"
-        
-              Write-Output "Creating Managed Disk for image version: $IMAGE_VERSION"
-              Write-Output "Sanitized Disk Name: $DISK_NAME"
-        
-              az disk create `
-                --resource-group $env:DESTINATION_RESOURCE_GROUP `
-                --name $DISK_NAME `
-                --location $env:LOCATION `
-                --gallery-image-reference "/subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/$env:SOURCE_RESOURCE_GROUP/providers/Microsoft.Compute/galleries/$env:GALLERY_NAME/images/$env:IMAGE_DEFINITION/versions/$IMAGE_VERSION"
-        
-              if ($LASTEXITCODE -ne 0) {
-                Write-Error "Failed to create disk for $IMAGE_VERSION"
-                exit 1
-              }
+          # Retrieve filtered versions
+          $IMAGE_VERSIONS = $env:IMAGE_VERSIONS -split ","
+
+          foreach ($IMAGE_VERSION in $IMAGE_VERSIONS) {
+            # Skip empty entries
+            if ([string]::IsNullOrEmpty($IMAGE_VERSION)) {
+              Write-Output "Skipping empty image version entry."
+              continue
             }
-        
-          
+
+            # Sanitize disk name (replace invalid characters)
+            $DISK_NAME = "ManagedDisk-$($IMAGE_VERSION -replace '[^a-zA-Z0-9-]', '-')"
+
+            Write-Output "Creating Managed Disk for image version: $IMAGE_VERSION"
+            Write-Output "Sanitized Disk Name: $DISK_NAME"
+
+            # Create the managed disk
+            az disk create `
+              --resource-group $env:DESTINATION_RESOURCE_GROUP `
+              --name $DISK_NAME `
+              --location $env:LOCATION `
+              --gallery-image-reference "/subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/$env:SOURCE_RESOURCE_GROUP/providers/Microsoft.Compute/galleries/$env:GALLERY_NAME/images/$env:IMAGE_DEFINITION/versions/$IMAGE_VERSION"
+
+            # Check if the command succeeded
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to create disk for $IMAGE_VERSION"
+              exit 1
+            }
+          }
