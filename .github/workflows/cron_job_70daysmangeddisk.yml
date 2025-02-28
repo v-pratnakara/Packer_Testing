@@ -1,5 +1,4 @@
-name: cron5th of month Archive Old Azure Images to Managed Disks
-
+name: Archive Old Azure Images to Managed Disks
 
 on:
   schedule:
@@ -69,7 +68,8 @@ jobs:
 
           foreach ($IMAGE_VERSION in $IMAGE_VERSIONS) {
             # Ensure disk name is valid (remove special characters)
-            $DISK_NAME = "ManagedDisk-$($IMAGE_VERSION -replace '[^a-zA-Z0-9]', '-')"
+            $DISK_NAME = "ManagedDisk-$($IMAGE_VERSION -replace '[^a-zA-Z0-9]', '')"
+            $DISK_NAME = $DISK_NAME.Substring(0, [System.Math]::Min($DISK_NAME.Length, 80))
             Write-Output "Creating Managed Disk for image version: $IMAGE_VERSION"
 
             az disk create `
