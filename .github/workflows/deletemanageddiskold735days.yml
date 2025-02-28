@@ -1,0 +1,74 @@
+name:  old 735 days Archive and Cleanup Manged disk 
+
+on:
+  schedule:
+    - cron: "0 0 5 * *"  # Runs at 00:00 UTC on the 5th of every month
+  workflow_dispatch:  # Allows manual trigger
+
+env:
+  AZURE_SUBSCRIPTION_ID: "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
+  SOURCE_RESOURCE_GROUP: "rg-packer-acg"
+  DESTINATION_RESOURCE_GROUP: "Test_VM"
+  GALLERY_NAME: "AzurepackerImages"
+  IMAGE_DEFINITION: "win2019dcx64"
+  LOCATION: "West US"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  archive-and-cleanup:
+    runs-on: self-hosted
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Authenticate to Azure
+        uses: azure/login@v2
+        with:
+          auth-type: IDENTITY
+          client-id: ${{ secrets.AZURE_CLIENT_ID1 }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID1 }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID1 }}
+
+
+      - name: Delete Managed Disks Older than 735 Days
+        shell: pwsh
+        run: |
+          $CURRENT_DATE = Get-Date
+          $DELETE_BEFORE_DATE = $CURRENT_DATE.AddDays(-735)
+
+          # Fetch all Managed Disks in the destination resource group
+          $DISKS = az disk list `
+            --resource-group $env:DESTINATION_RESOURCE_GROUP `
+            --query "[].{name:name, timeCreated:timeCreated}" `
+            -o json | ConvertFrom-Json
+
+          if (-not $DISKS) {
+            Write-Output "No managed disks found in $env:DESTINATION_RESOURCE_GROUP"
+            exit 0
+          }
+
+          # Filter disks older than 735 days
+          $OLD_DISKS = $DISKS | Where-Object { [DateTime]$_.timeCreated -lt $DELETE_BEFORE_DATE }
+
+          if (-not $OLD_DISKS) {
+            Write-Output "No disks older than 735 days found."
+            exit 0
+          }
+
+          foreach ($DISK in $OLD_DISKS) {
+            Write-Output "Deleting old disk: $($DISK.name)"
+            
+            az disk delete `
+              --resource-group $env:DESTINATION_RESOURCE_GROUP `
+              --name $DISK.name `
+              --yes
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to delete disk $($DISK.name)"
+              exit 1
+            }
+          }
