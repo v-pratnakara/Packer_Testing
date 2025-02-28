@@ -30,7 +30,6 @@ source "azure-arm" "windowsimage-2022" {
   temp_os_disk_name  = "packerwin2022-osdisk-poc"
   shared_gallery_image_version_end_of_life_date = "2025-02-28T20:00:05.99Z"
 
-
   ### Build Image publish to Target Azure compute galleries###
   shared_image_gallery_destination {
     subscription   = "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
