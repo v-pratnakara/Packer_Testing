@@ -1,4 +1,4 @@
-name: Manage SIG Images and Create Managed Disks
+name: N-2 Maintain Latest 2 SIG Images and Convert Older to Managed Disks
 
 on:
   workflow_dispatch:  # Allows manual trigger
@@ -10,7 +10,6 @@ env:
   GALLERY_NAME: "AzurepackerImages"
   IMAGE_DEFINITION: "win2019dcx64"
   LOCATION: "West US"
-  #ARCHIVE_RESOURCE_GROUP: "Archived_Images"  # Define where to archive images
 
 permissions:
   id-token: write
@@ -34,16 +33,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID1 }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID1 }}
 
-      # Step 3: Get Image Versions, Filter & Archive
-      - name: Get Image Versions and Archive Old Ones
+      # Step 3: Get Image Versions and Identify Old Ones
+      - name: Get Image Versions and Identify Old Ones
         id: get-versions
         shell: pwsh
         run: |
-          # Set parameters
-          $N_TO_KEEP = 2  # Keep only latest N-2 versions
-          $thresholdDate = (Get-Date).AddDays(-3).ToString("yyyy-MM-dd")
-
-          # Fetch all image versions sorted by date
+          # Fetch all image versions sorted by published date (latest first)
           $image_versions_json = az sig image-version list `
             --resource-group $env:SOURCE_RESOURCE_GROUP `
             --gallery-name $env:GALLERY_NAME `
@@ -51,46 +46,39 @@ jobs:
             --query "[].{version:name, published:publishingProfile.publishedDate}" `
             --output json | ConvertFrom-Json | Sort-Object -Property published -Descending
 
-          # Separate versions into "active" and "archive"
-          $filtered_versions = @()
-          $archived_versions = @()
-
-          for ($i = 0; $i -lt $image_versions_json.Count; $i++) {
-            $image = $image_versions_json[$i]
-            
-            # If older than 70 days or beyond N-2 threshold, archive it
-            if ($image.published -lt $thresholdDate -or $i -ge $N_TO_KEEP) {
-              $archived_versions += $image.version
-            } else {
-              $filtered_versions += $image.version
-            }
-          }
-
-          # Store active versions in GitHub env for disk creation
-          if ($filtered_versions.Count -eq 0) {
-            Write-Error "No images meet the retention criteria!"
+          # Ensure we have at least one image
+          if ($image_versions_json.Count -lt 1) {
+            Write-Error "No image versions found!"
             exit 1
           }
-          $IMAGE_VERSIONS = $filtered_versions -join ","
-          echo "IMAGE_VERSIONS=$IMAGE_VERSIONS" | Out-File -FilePath $env:GITHUB_ENV -Append
-          Write-Output "Keeping Image Versions: $IMAGE_VERSIONS"
 
-        #   # Archive old images by moving them to another resource group
-        #   foreach ($version in $archived_versions) {
-        #     Write-Output "Archiving image version: $version"
-        #     az resource move `
-        #       --destination-group $env:ARCHIVE_RESOURCE_GROUP `
-        #       --ids "/subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/$env:SOURCE_RESOURCE_GROUP/providers/Microsoft.Compute/galleries/$env:GALLERY_NAME/images/$env:IMAGE_DEFINITION/versions/$version"
-        #   }
+          # Keep only the latest 2 images in SIG
+          $latest_versions = $image_versions_json[0..1].version
+          $old_versions = $image_versions_json[2..$image_versions_json.Count].version
 
-      # Step 4: Create Managed Disks from Filtered Images
-      - name: Create Managed Disks
+          # Store the versions in GitHub environment
+          $KEEP_VERSIONS = $latest_versions -join ","
+          echo "KEEP_VERSIONS=$KEEP_VERSIONS" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Output "Keeping Image Versions: $KEEP_VERSIONS"
+
+          # Store old versions for disk conversion
+          if ($old_versions.Count -gt 0) {
+            $OLD_VERSIONS = $old_versions -join ","
+            echo "OLD_VERSIONS=$OLD_VERSIONS" | Out-File -FilePath $env:GITHUB_ENV -Append
+            Write-Output "Converting Older Versions to Managed Disks: $OLD_VERSIONS"
+          } else {
+            Write-Output "No old images to convert."
+            echo "OLD_VERSIONS=" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+
+      # Step 4: Create Managed Disks from Older Images
+      - name: Convert Old Images to Managed Disks
+        if: env.OLD_VERSIONS != ''
         shell: pwsh
         run: |
-          # Retrieve valid image versions
-          $IMAGE_VERSIONS = $env:IMAGE_VERSIONS -split ","
+          $OLD_VERSIONS = $env:OLD_VERSIONS -split ","
 
-          foreach ($IMAGE_VERSION in $IMAGE_VERSIONS) {
+          foreach ($IMAGE_VERSION in $OLD_VERSIONS) {
             if ([string]::IsNullOrEmpty($IMAGE_VERSION)) {
               Write-Output "Skipping empty image version entry."
               continue
@@ -114,4 +102,23 @@ jobs:
               Write-Error "Failed to create disk for $IMAGE_VERSION"
               exit 1
             }
+          }
+
+      # Step 5: Delete Older Image Versions from SIG
+      - name: Delete Older Images from SIG
+        if: env.OLD_VERSIONS != ''
+        shell: pwsh
+        run: |
+          $OLD_VERSIONS = $env:OLD_VERSIONS -split ","
+
+          foreach ($IMAGE_VERSION in $OLD_VERSIONS) {
+            Write-Output "Deleting old SIG image version: $IMAGE_VERSION"
+
+            az sig image-version delete `
+              --resource-group $env:SOURCE_RESOURCE_GROUP `
+              --gallery-name $env:GALLERY_NAME `
+              --gallery-image-definition $env:IMAGE_DEFINITION `
+              --image-version $IMAGE_VERSION
+
+            Write-Output "Deleted image version: $IMAGE_VERSION"
           }
