@@ -34,6 +34,7 @@ jobs:
       - name: Get Image Versions
         shell: pwsh
         run: |
+          # Fetch image versions from Azure Shared Image Gallery
           $IMAGE_VERSIONS = az sig image-version list `
             --resource-group $env:SOURCE_RESOURCE_GROUP `
             --gallery-name $env:GALLERY_NAME `
@@ -45,18 +46,23 @@ jobs:
             exit 1
           }
 
+          # Ensure each version is separated correctly
+          $IMAGE_VERSIONS = $IMAGE_VERSIONS -split "\s+"
+
           # Store image versions in GitHub Actions environment
-          Add-Content -Path $env:GITHUB_ENV -Value "IMAGE_VERSIONS=$IMAGE_VERSIONS"
+          Add-Content -Path $env:GITHUB_ENV -Value "IMAGE_VERSIONS=$($IMAGE_VERSIONS -join ',')"
 
           Write-Output "Found Image Versions:"
-          Write-Output "$IMAGE_VERSIONS"
+          $IMAGE_VERSIONS | ForEach-Object { Write-Output $_ }
 
-      - name: Create Managed Disks
+      - name: Create Managed Disks for Each Version
         shell: pwsh
         run: |
-          $IMAGE_VERSIONS = $env:IMAGE_VERSIONS -split "`n"
+          # Retrieve image versions from environment
+          $IMAGE_VERSIONS = $env:IMAGE_VERSIONS -split ","
 
           foreach ($IMAGE_VERSION in $IMAGE_VERSIONS) {
+            # Ensure disk name is valid (remove special characters)
             $DISK_NAME = "ManagedDisk-$($IMAGE_VERSION -replace '[^a-zA-Z0-9]', '-')"
             Write-Output "Creating Managed Disk for image version: $IMAGE_VERSION"
 
