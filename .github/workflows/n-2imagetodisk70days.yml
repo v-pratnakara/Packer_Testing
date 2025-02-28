@@ -1,7 +1,9 @@
 name: N-2 Maintain Latest 2 SIG Images and Convert Older to Managed Disks
 
 on:
-  workflow_dispatch:  # Allows manual trigger
+ schedule:
+    - cron: "0 0 */3 * *"  # Runs every 3 days at midnight UTC
+ workflow_dispatch:  # Allows manual trigger
 
 env:
   AZURE_SUBSCRIPTION_ID: "1901eaa9-e98f-49b6-ac39-b1cd55defe19"

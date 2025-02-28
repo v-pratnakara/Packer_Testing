@@ -1,0 +1,77 @@
+name: N-2 old 70days Archive Azure SIG Images
+
+on:
+  schedule:
+    - cron: "0 0 5 * *"  # Runs at midnight UTC on the 5th of every month
+  workflow_dispatch:  # Allows manual execution
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  archive-images:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Authenticate to Azure
+        uses: azure/login@v2
+        with:
+          auth-type: IDENTITY
+          client-id: ${{ secrets.AZURE_CLIENT_ID1 }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID1 }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID1 }}
+
+      - name: Archive Image Versions Older Than 70 Days
+        shell: pwsh
+        run: |
+          # Set Azure Variables
+          $SubscriptionID = "${{ secrets.AZURE_SUBSCRIPTION_ID1 }}"
+          $SourceResourceGroup = "rg-packer-acg"
+          $DestinationResourceGroup = "Test_VM"
+          $GalleryName = "AzurepackerImages"
+          $ImageDefinition = "win2019dcx64"
+          $Location = "West US"
+
+          # Authenticate to Azure
+          az account set --subscription $SubscriptionID
+
+          # Fetch Image Versions from SIG
+          $ImageVersions = az sig image-version list `
+              --resource-group $SourceResourceGroup `
+              --gallery-name $GalleryName `
+              --gallery-image-definition $ImageDefinition `
+              --query "[].{version:name, date:publishingProfile.publishedDate}" `
+              --output json | ConvertFrom-Json | Sort-Object date -Descending
+
+          # Keep only the latest 2 versions and archive older ones
+          $LatestVersions = $ImageVersions[0..1]  # Keep latest 2 images
+          $OldVersions = $ImageVersions | Select-Object -Skip 2  # Select older images
+
+          # Filter images older than 70 days
+          $CutoffDate = (Get-Date).AddDays(-3)
+          $VersionsToArchive = $OldVersions | Where-Object { [datetime]$_.date -lt $CutoffDate }
+
+          if ($VersionsToArchive) {
+              Write-Output "Archiving the following image versions older than 70 days:"
+              $VersionsToArchive | ForEach-Object { Write-Output $_.version }
+
+              foreach ($Image in $VersionsToArchive) {
+                  $ImageVersion = $Image.version
+                  $DiskName = "ManagedDisk-$ImageVersion"
+
+                  Write-Output "Creating Managed Disk for image version: $ImageVersion"
+
+                  az disk create `
+                      --resource-group $DestinationResourceGroup `
+                      --name $DiskName `
+                      --location $Location `
+                      --gallery-image-reference "/subscriptions/$SubscriptionID/resourceGroups/$SourceResourceGroup/providers/Microsoft.Compute/galleries/$GalleryName/images/$ImageDefinition/versions/$ImageVersion"
+
+                  Write-Output "Managed Disk created: $DiskName"
+              }
+          } else {
+              Write-Output "No image versions found older than 70 days."
+          }
