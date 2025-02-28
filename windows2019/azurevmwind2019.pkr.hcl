@@ -30,7 +30,7 @@ source "azure-arm" "windowsimage-2019" {
   virtual_network_resource_group_name = "Test_VM"
   virtual_network_name                = "v-network"
   virtual_network_subnet_name         = "subnet1"
-  shared_gallery_image_version_end_of_life_date = "2025-02-26T23:00:05.99Z"
+  shared_gallery_image_version_end_of_life_date = "2025-02-28T20:00:05.99Z"
   #shared_gallery_image_version_exclude_from_latest  = true
 
 
@@ -39,7 +39,8 @@ source "azure-arm" "windowsimage-2019" {
     subscription   = "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
     gallery_name   = "AzurepackerImages"
     image_name     = "win2019dcx64"
-    image_version  = "${formatdate("YYYY.MMDD.hhmm", timestamp())}"
+    #image_version  = "${formatdate("YYYY.MMDD.hhmm", timestamp())}"
+    image_version  = "1.0.0"
     resource_group = "rg-packer-acg"
   }
 }
