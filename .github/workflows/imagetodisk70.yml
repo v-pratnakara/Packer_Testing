@@ -1,7 +1,9 @@
 name: Old 70days-Export SIG Image Versions to Managed Disks
 
 on:
-  workflow_dispatch:  # Allows manual trigger
+ schedule:
+    - cron: "0 0 5 * *"  # Runs at midnight UTC on the 5th of every month
+ workflow_dispatch:  # Allows manual execution
 
 env:
   AZURE_SUBSCRIPTION_ID: "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
