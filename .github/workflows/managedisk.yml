@@ -32,28 +32,32 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID1 }}
 
       - name: Get Image Versions
-        id: get-versions
+        shell: pwsh
         run: |
-          IMAGE_VERSIONS=$(az sig image-version list \
-            --resource-group $SOURCE_RESOURCE_GROUP \
-            --gallery-name $GALLERY_NAME \
-            --gallery-image-definition $IMAGE_DEFINITION \
-            --query "[].name" -o tsv)
+          $IMAGE_VERSIONS = az sig image-version list `
+            --resource-group $env:SOURCE_RESOURCE_GROUP `
+            --gallery-name $env:GALLERY_NAME `
+            --gallery-image-definition $env:IMAGE_DEFINITION `
+            --query "[].name" -o tsv
 
-          echo "IMAGE_VERSIONS<<EOF" >> $GITHUB_ENV
-          echo "$IMAGE_VERSIONS" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          if (-not $IMAGE_VERSIONS) {
+            Write-Output "No Image Versions Found!"
+            exit 1
+          }
 
-          echo "Found Image Versions:"
-          echo "$IMAGE_VERSIONS"
+          # Store image versions in GitHub Actions environment
+          Add-Content -Path $env:GITHUB_ENV -Value "IMAGE_VERSIONS=$IMAGE_VERSIONS"
+
+          Write-Output "Found Image Versions:"
+          Write-Output "$IMAGE_VERSIONS"
 
       - name: Create Managed Disks
-        shell: pwsh  # This ensures PowerShell is used
+        shell: pwsh
         run: |
-          $IMAGE_VERSIONS = "${{ env.IMAGE_VERSIONS }}" -split "`n"
+          $IMAGE_VERSIONS = $env:IMAGE_VERSIONS -split "`n"
 
           foreach ($IMAGE_VERSION in $IMAGE_VERSIONS) {
-            $DISK_NAME = "ManagedDisk-$($IMAGE_VERSION -replace '\.', '-')"
+            $DISK_NAME = "ManagedDisk-$($IMAGE_VERSION -replace '[^a-zA-Z0-9]', '-')"
             Write-Output "Creating Managed Disk for image version: $IMAGE_VERSION"
 
             az disk create `
@@ -61,4 +65,9 @@ jobs:
               --name $DISK_NAME `
               --location $env:LOCATION `
               --gallery-image-reference "/subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/$env:SOURCE_RESOURCE_GROUP/providers/Microsoft.Compute/galleries/$env:GALLERY_NAME/images/$env:IMAGE_DEFINITION/versions/$IMAGE_VERSION"
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to create disk for $IMAGE_VERSION"
+              exit 1
+            }
           }
