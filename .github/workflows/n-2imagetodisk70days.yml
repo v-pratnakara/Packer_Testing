@@ -104,21 +104,4 @@ jobs:
             }
           }
 
-      # Step 5: Delete Older Image Versions from SIG
-      - name: Delete Older Images from SIG
-        if: env.OLD_VERSIONS != ''
-        shell: pwsh
-        run: |
-          $OLD_VERSIONS = $env:OLD_VERSIONS -split ","
-
-          foreach ($IMAGE_VERSION in $OLD_VERSIONS) {
-            Write-Output "Deleting old SIG image version: $IMAGE_VERSION"
-
-            az sig image-version delete `
-              --resource-group $env:SOURCE_RESOURCE_GROUP `
-              --gallery-name $env:GALLERY_NAME `
-              --gallery-image-definition $env:IMAGE_DEFINITION `
-              --image-version $IMAGE_VERSION
-
-            Write-Output "Deleted image version: $IMAGE_VERSION"
-          }
+      
