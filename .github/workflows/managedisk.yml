@@ -8,7 +8,7 @@ env:
   SOURCE_RESOURCE_GROUP: "rg-packer-acg"
   DESTINATION_RESOURCE_GROUP: "Test_VM"
   GALLERY_NAME: "AzurepackerImages"
-  IMAGE_DEFINITION: "linux8x64"
+  IMAGE_DEFINITION: "win2019dcx64"
   LOCATION: "West US"
 
 permissions:
@@ -20,7 +20,6 @@ jobs:
     runs-on: self-hosted
     steps:
 
-      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v2
 
@@ -32,64 +31,34 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID1 }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID1 }}
 
-      # Step 2: Get Image Versions from SIG
       - name: Get Image Versions
         id: get-versions
-        shell: pwsh
         run: |
-          $IMAGE_VERSIONS = az sig image-version list `
-            --resource-group $env:SOURCE_RESOURCE_GROUP `
-            --gallery-name $env:GALLERY_NAME `
-            --gallery-image-definition $env:IMAGE_DEFINITION `
-            --query "[].name" -o tsv | Sort-Object
+          IMAGE_VERSIONS=$(az sig image-version list \
+            --resource-group $SOURCE_RESOURCE_GROUP \
+            --gallery-name $GALLERY_NAME \
+            --gallery-image-definition $IMAGE_DEFINITION \
+            --query "[].name" -o tsv)
 
-          if (-not $IMAGE_VERSIONS) {
-            Write-Output "No image versions found!"
-            exit 1
-          }
+          echo "IMAGE_VERSIONS<<EOF" >> $GITHUB_ENV
+          echo "$IMAGE_VERSIONS" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
-          Write-Output "Image Versions Found:"
-          Write-Output $IMAGE_VERSIONS
+          echo "Found Image Versions:"
+          echo "$IMAGE_VERSIONS"
 
-          # Store image versions for the next step
-          echo "::set-output name=image_versions::$IMAGE_VERSIONS"
-
-      # Step 3: Create Managed Disks for Each Image Version
       - name: Create Managed Disks
-        shell: pwsh
+        shell: pwsh  # This ensures PowerShell is used
         run: |
-          $IMAGE_VERSIONS = "${{ steps.get-versions.outputs.image_versions }}"
+          $IMAGE_VERSIONS = "${{ env.IMAGE_VERSIONS }}" -split "`n"
 
-          foreach ($IMAGE_VERSION in $IMAGE_VERSIONS -split "`r`n") {
-            if ($IMAGE_VERSION -ne "") {
-              # Replace dots with hyphens and remove spaces
-              $SANITIZED_VERSION = $IMAGE_VERSION -replace "\.", "-" -replace " ", ""
-              
-              # Ensure disk name is within 64 characters
-              $DISK_NAME = "ManagedDisk-$SANITIZED_VERSION"
-              if ($DISK_NAME.Length -gt 64) {
-                $DISK_NAME = $DISK_NAME.Substring(0, 64)
-              }
+          foreach ($IMAGE_VERSION in $IMAGE_VERSIONS) {
+            $DISK_NAME = "ManagedDisk-$($IMAGE_VERSION -replace '\.', '-')"
+            Write-Output "Creating Managed Disk for image version: $IMAGE_VERSION"
 
-              Write-Output "Creating Managed Disk for image version: $IMAGE_VERSION as $DISK_NAME"
-
-              az disk create `
-                --resource-group $env:DESTINATION_RESOURCE_GROUP `
-                --name $DISK_NAME `
-                --location $env:LOCATION `
-                --gallery-image-reference "/subscriptions/${{ env.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.SOURCE_RESOURCE_GROUP }}/providers/Microsoft.Compute/galleries/${{ env.GALLERY_NAME }}/images/${{ env.IMAGE_DEFINITION }}/versions/$IMAGE_VERSION"
-            }
+            az disk create `
+              --resource-group $env:DESTINATION_RESOURCE_GROUP `
+              --name $DISK_NAME `
+              --location $env:LOCATION `
+              --gallery-image-reference "/subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/$env:SOURCE_RESOURCE_GROUP/providers/Microsoft.Compute/galleries/$env:GALLERY_NAME/images/$env:IMAGE_DEFINITION/versions/$IMAGE_VERSION"
           }
-
-    #   # Step 4: Move Managed Disks to Another Resource Group
-    #   - name: Move Managed Disks
-    #     shell: pwsh
-    #     run: |
-    #       $DISK_IDS = az disk list --resource-group $env:DESTINATION_RESOURCE_GROUP --query "[].id" -o tsv
-
-    #       if ($DISK_IDS -ne "") {
-    #         Write-Output "Moving Managed Disks to Resource Group: $env:DESTINATION_RESOURCE_GROUP..."
-    #         az resource move --destination-group $env:DESTINATION_RESOURCE_GROUP --ids $DISK_IDS
-    #       } else {
-    #         Write-Output "No disks found to move."
-    #       }
