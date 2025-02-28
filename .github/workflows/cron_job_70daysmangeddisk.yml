@@ -1,5 +1,6 @@
 name: cron5th of month Archive Old Azure Images to Managed Disks
 
+
 on:
   schedule:
     - cron: "0 0 5 * *"  # Runs at midnight UTC on the 5th of every month
