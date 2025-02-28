@@ -41,7 +41,7 @@ jobs:
         run: |
           # Set parameters
           $N_TO_KEEP = 2  # Keep only latest N-2 versions
-          $thresholdDate = (Get-Date).AddDays(-70).ToString("yyyy-MM-dd")
+          $thresholdDate = (Get-Date).AddDays(-3).ToString("yyyy-MM-dd")
 
           # Fetch all image versions sorted by date
           $image_versions_json = az sig image-version list `
