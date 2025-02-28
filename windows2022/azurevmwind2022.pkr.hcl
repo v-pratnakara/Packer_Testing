@@ -34,7 +34,8 @@ source "azure-arm" "windowsimage-2022" {
     subscription   = "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
     gallery_name   = "AzurepackerImages"
     image_name     = "win2022dcx64"
-    image_version  = "${formatdate("YYYY.MMDD.hhmm", timestamp())}"
+    #image_version  = "${formatdate("YYYY.MMDD.hhmm", timestamp())}"
+    image_version  = "2.0.0"
     resource_group = "rg-packer-acg"
   }
 }

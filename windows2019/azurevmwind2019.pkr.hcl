@@ -40,7 +40,7 @@ source "azure-arm" "windowsimage-2019" {
     gallery_name   = "AzurepackerImages"
     image_name     = "win2019dcx64"
     #image_version  = "${formatdate("YYYY.MMDD.hhmm", timestamp())}"
-    image_version  = "1.0.0"
+    image_version  = "2.0.0"
     resource_group = "rg-packer-acg"
   }
 }
