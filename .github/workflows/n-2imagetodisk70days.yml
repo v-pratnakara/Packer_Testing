@@ -1,0 +1,117 @@
+name: Manage SIG Images and Create Managed Disks
+
+on:
+  workflow_dispatch:  # Allows manual trigger
+
+env:
+  AZURE_SUBSCRIPTION_ID: "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
+  SOURCE_RESOURCE_GROUP: "rg-packer-acg"
+  DESTINATION_RESOURCE_GROUP: "Test_VM"
+  GALLERY_NAME: "AzurepackerImages"
+  IMAGE_DEFINITION: "win2019dcx64"
+  LOCATION: "West US"
+  #ARCHIVE_RESOURCE_GROUP: "Archived_Images"  # Define where to archive images
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  manage-sig-images:
+    runs-on: self-hosted
+    steps:
+
+      # Step 1: Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      # Step 2: Authenticate to Azure
+      - name: Authenticate to Azure
+        uses: azure/login@v2
+        with:
+          auth-type: IDENTITY
+          client-id: ${{ secrets.AZURE_CLIENT_ID1 }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID1 }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID1 }}
+
+      # Step 3: Get Image Versions, Filter & Archive
+      - name: Get Image Versions and Archive Old Ones
+        id: get-versions
+        shell: pwsh
+        run: |
+          # Set parameters
+          $N_TO_KEEP = 2  # Keep only latest N-2 versions
+          $thresholdDate = (Get-Date).AddDays(-70).ToString("yyyy-MM-dd")
+
+          # Fetch all image versions sorted by date
+          $image_versions_json = az sig image-version list `
+            --resource-group $env:SOURCE_RESOURCE_GROUP `
+            --gallery-name $env:GALLERY_NAME `
+            --gallery-image-definition $env:IMAGE_DEFINITION `
+            --query "[].{version:name, published:publishingProfile.publishedDate}" `
+            --output json | ConvertFrom-Json | Sort-Object -Property published -Descending
+
+          # Separate versions into "active" and "archive"
+          $filtered_versions = @()
+          $archived_versions = @()
+
+          for ($i = 0; $i -lt $image_versions_json.Count; $i++) {
+            $image = $image_versions_json[$i]
+            
+            # If older than 70 days or beyond N-2 threshold, archive it
+            if ($image.published -lt $thresholdDate -or $i -ge $N_TO_KEEP) {
+              $archived_versions += $image.version
+            } else {
+              $filtered_versions += $image.version
+            }
+          }
+
+          # Store active versions in GitHub env for disk creation
+          if ($filtered_versions.Count -eq 0) {
+            Write-Error "No images meet the retention criteria!"
+            exit 1
+          }
+          $IMAGE_VERSIONS = $filtered_versions -join ","
+          echo "IMAGE_VERSIONS=$IMAGE_VERSIONS" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Output "Keeping Image Versions: $IMAGE_VERSIONS"
+
+        #   # Archive old images by moving them to another resource group
+        #   foreach ($version in $archived_versions) {
+        #     Write-Output "Archiving image version: $version"
+        #     az resource move `
+        #       --destination-group $env:ARCHIVE_RESOURCE_GROUP `
+        #       --ids "/subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/$env:SOURCE_RESOURCE_GROUP/providers/Microsoft.Compute/galleries/$env:GALLERY_NAME/images/$env:IMAGE_DEFINITION/versions/$version"
+        #   }
+
+      # Step 4: Create Managed Disks from Filtered Images
+      - name: Create Managed Disks
+        shell: pwsh
+        run: |
+          # Retrieve valid image versions
+          $IMAGE_VERSIONS = $env:IMAGE_VERSIONS -split ","
+
+          foreach ($IMAGE_VERSION in $IMAGE_VERSIONS) {
+            if ([string]::IsNullOrEmpty($IMAGE_VERSION)) {
+              Write-Output "Skipping empty image version entry."
+              continue
+            }
+
+            # Sanitize disk name
+            $DISK_NAME = "ManagedDisk-$($IMAGE_VERSION -replace '[^a-zA-Z0-9-]', '-')"
+
+            Write-Output "Creating Managed Disk for image version: $IMAGE_VERSION"
+            Write-Output "Sanitized Disk Name: $DISK_NAME"
+
+            # Create the managed disk
+            az disk create `
+              --resource-group $env:DESTINATION_RESOURCE_GROUP `
+              --name $DISK_NAME `
+              --location $env:LOCATION `
+              --gallery-image-reference "/subscriptions/$env:AZURE_SUBSCRIPTION_ID/resourceGroups/$env:SOURCE_RESOURCE_GROUP/providers/Microsoft.Compute/galleries/$env:GALLERY_NAME/images/$env:IMAGE_DEFINITION/versions/$IMAGE_VERSION"
+
+            # Check if the command succeeded
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to create disk for $IMAGE_VERSION"
+              exit 1
+            }
+          }
