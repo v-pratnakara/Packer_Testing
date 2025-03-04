@@ -28,7 +28,7 @@ source "azure-arm" "rhel_image" {
   temp_nic_name     = "packerlinux-nic-poc"
   build_resource_group_name = "Test_VM"
   temp_os_disk_name  = "packerlinux-osdisk-poc"
-  shared_gallery_image_version_end_of_life_date = "2025-02-28T20:00:05.99Z"
+  shared_gallery_image_version_end_of_life_date = "2025-03-06T20:00:05.99Z"
   #Define the network
   virtual_network_resource_group_name = "Test_VM"
   virtual_network_name                = "v-network"
@@ -40,7 +40,7 @@ source "azure-arm" "rhel_image" {
     subscription   = "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
     gallery_name   = "AzurepackerImages"
     image_name     = "linux8x64"
-    image_version  = "4.0.0"
+    image_version  = "5.0.0"
     #image_version = formatdate("YYYY.MMDD.hhmm", timestamp())
     resource_group = "rg-packer-acg"
   }
