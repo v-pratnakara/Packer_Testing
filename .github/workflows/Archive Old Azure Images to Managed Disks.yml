@@ -37,7 +37,7 @@ jobs:
         run: |
           # Get current date in the required format
           $CURRENT_DATE = Get-Date
-          $CUT_OFF_DATE = $CURRENT_DATE.AddDays(-15).ToString("yyyy-MM-dd")
+          $CUT_OFF_DATE = $CURRENT_DATE.AddDays(-18).ToString("yyyy-MM-dd")
           
           # Fetch image versions with creation dates
           $IMAGE_VERSIONS = az sig image-version list `
