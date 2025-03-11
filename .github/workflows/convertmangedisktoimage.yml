@@ -23,19 +23,19 @@ jobs:
 
       - name: Create Image from Managed Disk
         run: |
-          az image create \
-            --resource-group "Test_VM" \
-            --name "testimage" \
-            --source "/subscriptions/1901eaa9-e98f-49b6-ac39-b1cd55defe19/resourceGroups/Test_VM/providers/Microsoft.Compute/disks/ManagedDisk-2-0-0" \
+          az image create `
+            --resource-group "Test_VM" `
+            --name "testimage" `
+            --source "/subscriptions/1901eaa9-e98f-49b6-ac39-b1cd55defe19/resourceGroups/Test_VM/providers/Microsoft.Compute/disks/ManagedDisk-2-0-0" `
             --os-type  "Windows"
 
       - name: Publish Image to Compute Gallery
         run: |
-          az sig image-version create \
-            --resource-group "West US " \
-            --gallery-name "AzurepackerImages" \
-            --gallery-image-definition "win2019dcx64" \
-            --gallery-image-version 1.0.0 \
+          az sig image-version create `
+            --resource-group "West US " `
+            --gallery-name "AzurepackerImages" `
+            --gallery-image-definition "win2019dcx64" `
+            --gallery-image-version 1.0.0 `
             --managed-image "/subscriptions/1901eaa9-e98f-49b6-ac39-b1cd55defe19/resourceGroups/Test_VM/providers/Microsoft.Compute/images/testimage"
 
       
