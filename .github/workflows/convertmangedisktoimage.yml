@@ -27,8 +27,8 @@ jobs:
             --resource-group "Test_VM" `
             --name "testimage" `
             --source "/subscriptions/1901eaa9-e98f-49b6-ac39-b1cd55defe19/resourceGroups/Test_VM/providers/Microsoft.Compute/disks/ManagedDisk-2-0-0" `
-            --os-type  "Windows"
-
+            --os-type  "Windows" `
+            --hyper-v-generation "V2"
       - name: Publish Image to Compute Gallery
         run: |
           az sig image-version create `
