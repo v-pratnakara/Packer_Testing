@@ -32,7 +32,7 @@ jobs:
       - name: Publish Image to Compute Gallery
         run: |
           az sig image-version create `
-            --resource-group "West US " `
+            --resource-group "WestUS" `
             --gallery-name "AzurepackerImages" `
             --gallery-image-definition "win2019dcx64" `
             --gallery-image-version 1.0.0 `
