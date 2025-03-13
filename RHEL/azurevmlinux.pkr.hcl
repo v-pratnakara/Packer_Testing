@@ -20,6 +20,7 @@ source "azure-arm" "rhel_image" {
   image_version       =  "latest" # Adjust for the RHEL version and generation you need
   os_disk_size_gb     =  128
   managed_image_storage_account_type = "Premium_LRS"
+  disk_encryption_set_id = "/subscriptions/1901eaa9-e98f-49b6-ac39-b1cd55defe19/resourceGroups/Test_VM/providers/Microsoft.Compute/diskEncryptionSets/packerdes"
   communicator        = "ssh"
   ssh_username        = "packerlinux"
   ssh_clear_authorized_keys  = true
@@ -40,7 +41,7 @@ source "azure-arm" "rhel_image" {
     subscription   = "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
     gallery_name   = "AzurepackerImages"
     image_name     = "linux8x64"
-    image_version  = "5.0.0"
+    image_version  = "5.0.1"
     #image_version = formatdate("YYYY.MMDD.hhmm", timestamp())
     resource_group = "rg-packer-acg"
   }
