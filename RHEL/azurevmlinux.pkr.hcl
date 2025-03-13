@@ -29,12 +29,12 @@ source "azure-arm" "rhel_image" {
   temp_nic_name     = "packerlinux-nic-poc"
   build_resource_group_name = "Test_VM"
   temp_os_disk_name  = "packerlinux-osdisk-poc"
-  shared_gallery_image_version_end_of_life_date = "2025-03-06T20:00:05.99Z"
+  #shared_gallery_image_version_end_of_life_date = "2025-03-06T20:00:05.99Z"
   #Define the network
   virtual_network_resource_group_name = "Test_VM"
   virtual_network_name                = "v-network"
   virtual_network_subnet_name         = "subnet1"
-  
+
 
  ## Build Image publish to Target Azure compute galleries###
 
