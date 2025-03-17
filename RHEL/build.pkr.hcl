@@ -20,7 +20,7 @@ build {
   provisioner "shell" {
     inline = [
       "echo 'Starting sleep...'",
-      "sleep 60",
+      "sleep 240",
       "echo 'Sleep completed.'"
     ]
   }
