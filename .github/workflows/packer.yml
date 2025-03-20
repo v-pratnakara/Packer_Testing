@@ -8,7 +8,7 @@ on:
 jobs:
   packer:
     name: Build windows & Linux images and Publish Images to ASIG
-    runs-on: self-hosted
+    runs-on: Linux-self-hosted #self-hosted
     env:
       #ROOT_PATH : '${{github.workspace}}/windows2019'
       ROOT_PATH : '${{github.workspace}}/RHEL'
