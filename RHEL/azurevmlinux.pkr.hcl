@@ -42,7 +42,7 @@ source "azure-arm" "rhel_image" {
     subscription   = "1901eaa9-e98f-49b6-ac39-b1cd55defe19"
     gallery_name   = "AzurepackerImages"
     image_name     = "linux8x64"
-    image_version  = "5.0.4"
+    image_version  = "5.0.5"
     #image_version = formatdate("YYYY.MMDD.hhmm", timestamp())
     resource_group = "rg-packer-acg"
   }
