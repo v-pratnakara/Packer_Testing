@@ -14,7 +14,7 @@ jobs:
     env:
       IMAGE_GALLERY: "AzurepackerImages"
       RESOURCE_GROUP: "rg-packer-acg"
-      IMAGE_DEFINITION: "win2019dcx64"
+      IMAGE_DEFINITION: "win2019x64-repave"
       KEEP_VERSIONS: 2  # Number of latest versions to keep
 
     permissions:
