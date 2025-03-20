@@ -2,7 +2,7 @@ name: Clean Up Old Images in Azure Image Gallery
 
 on:
   schedule:
-    - cron: "45 11 * * 2"  # Runs every Tuesday at 10:00 UTC
+    - cron: "00 16 * * *"  # Runs every day at 16:00 UTC
   workflow_dispatch:  # Allows manual execution
 
 jobs:
@@ -14,7 +14,7 @@ jobs:
     env:
       IMAGE_GALLERY: "AzurepackerImages"
       RESOURCE_GROUP: "rg-packer-acg"
-      IMAGE_DEFINITION: "linux8x64"
+      IMAGE_DEFINITION: "win2019dcx64"
       KEEP_VERSIONS: 2  # Number of latest versions to keep
 
     permissions:
