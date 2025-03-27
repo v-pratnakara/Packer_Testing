@@ -13,7 +13,7 @@ build {
       "sudo systemctl start httpd",
       "echo 'Sleeping for 5 seconds to ensure httpd service starts properly...'",
       "sleep 15",
-      "echo 'Build provisioning complete!'"
+      "echo 'system update completed!'"
     ]
   }
 
