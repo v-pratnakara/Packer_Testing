@@ -20,8 +20,17 @@ build {
   provisioner "shell" {
     inline = [
       "echo 'Starting sleep...'",
-      "sleep 240",
+      "sleep 60",
       "echo 'Sleep completed.'"
+    ]
+  }
+
+  provisioner "shell" {
+    inline = [
+      "echo 'Configuring waagent service...'",
+      "sudo systemctl enable waagent",
+      "sudo systemctl restart waagent",
+      "sudo waagent -force -deprovision+user && export HISTSIZE=0 && sync"
     ]
   }
 
