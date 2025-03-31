@@ -8,8 +8,8 @@ on:
 jobs:
   cleanup:
     name: Delete Old Image Versions
-    runs-on: self-hosted
-    #runs-on: Linux-self-hosted
+    #runs-on: self-hosted
+    runs-on: Linux-self-hosted
 
     env:
       IMAGE_GALLERY: "AzurepackerImages"
