@@ -1,0 +1,182 @@
+# trigger: 
+
+#   branches:
+
+#     include:
+
+#       - main
+ 
+pr:
+
+  branches:
+
+    include:
+
+      - main
+ 
+variables:
+
+  - group: TerraformSecrets  # Reference stored secrets in ADO
+ 
+stages:
+
+  - stage: Terraform_Deployment
+
+    displayName: "Terraform Deployment"
+
+    jobs:
+
+      - job: Terraform_Deploy
+
+        displayName: "Deploy Terraform"
+
+        pool:
+
+          vmImage: 'ubuntu-latest'
+
+        steps:
+
+          - checkout: self
+ 
+          # Install Terraform
+
+          - task: TerraformInstaller@1
+
+            displayName: "Install Terraform"
+
+            inputs:
+
+              terraformVersion: '1.9.2'
+ 
+          # Terraform Init with Azure AD Authentication
+
+          - task: AzureCLI@2
+
+            displayName: "Terraform Init"
+
+            inputs:
+
+              azureSubscription: "Terraform Deployment Connection_1"
+
+              scriptType: "bash"
+
+              scriptLocation: "inlineScript"
+
+              inlineScript: |
+
+                terraform init -input=false \
+
+                  -backend-config="resource_group_name=rg-dev-001" \
+
+                  -backend-config="storage_account_name=tfstatedemonew" \
+
+                  -backend-config="container_name=tfstate" \
+
+                  -backend-config="key=terraform.tfstate" \
+
+                  -backend-config="use_azuread_auth=true"
+
+            env:
+
+              ARM_CLIENT_ID: "$(ARM_CLIENT_ID)"
+
+              ARM_CLIENT_SECRET: "$(ARM_CLIENT_SECRET)"
+
+              ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
+
+              ARM_TENANT_ID: "$(ARM_TENANT_ID)"
+
+#         # Check if Resource Group exists & Import it (Prevents TF Apply Failure)
+
+          - task: AzureCLI@2
+
+            displayName: "Check & Import Existing Resource Group"
+
+            inputs:
+
+              azureSubscription: "Terraform Deployment Connection_1"
+
+              scriptType: "bash"
+
+              scriptLocation: "inlineScript"
+
+              inlineScript: |
+
+                RG_EXISTS=$(az group exists --name $(TF_RESOURCE_GROUP))
+
+                if [ "$RG_EXISTS" = "true" ]; then
+
+                  echo "Resource Group already exists. Importing into Terraform..."
+
+                  terraform import azurerm_resource_group.this /subscriptions/$(ARM_SUBSCRIPTION_ID)/resourceGroups/$(TF_RESOURCE_GROUP)
+
+                else
+
+                  echo "Resource Group does not exist. Terraform will create it."
+
+                fi
+ 
+          # Terraform Validate
+
+          - script: |
+
+              terraform validate
+
+            displayName: "Terraform Validate"
+ 
+          # Terraform Plan
+
+          - task: AzureCLI@2
+
+            displayName: "Terraform Plan"
+
+            inputs:
+
+              azureSubscription: "Terraform Deployment Connection_1"
+
+              scriptType: "bash"
+
+              scriptLocation: "inlineScript"
+
+              inlineScript: |
+
+                terraform plan -out=tfplan -input=false
+
+            env:
+
+              ARM_CLIENT_ID: "$(ARM_CLIENT_ID)"
+
+              ARM_CLIENT_SECRET: "$(ARM_CLIENT_SECRET)"
+
+              ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
+
+              ARM_TENANT_ID: "$(ARM_TENANT_ID)"
+ 
+          # Terraform Apply (only on main branch and if plan file exists)
+
+          - task: AzureCLI@2
+
+            displayName: "Terraform Apply"
+
+            inputs:
+
+              azureSubscription: "Terraform Deployment Connection_1"
+
+              scriptType: "bash"
+
+              scriptLocation: "inlineScript"
+
+              inlineScript: |
+
+                terraform apply -auto-approve tfplan
+
+            env:
+
+              ARM_CLIENT_ID: "$(ARM_CLIENT_ID)"
+
+              ARM_CLIENT_SECRET: "$(ARM_CLIENT_SECRET)"
+
+              ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
+
+              ARM_TENANT_ID: "$(ARM_TENANT_ID)"
+ 
