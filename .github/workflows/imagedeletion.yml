@@ -14,8 +14,8 @@ jobs:
     env:
       IMAGE_GALLERY: "AzurepackerImages"
       RESOURCE_GROUP: "rg-packer-acg"
-      IMAGE_DEFINITION: "linux8x64"
-      KEEP_VERSIONS: 1  # Number of latest versions to keep
+      IMAGE_DEFINITION: "win2019dcx64"
+      KEEP_VERSIONS: 0  # Number of latest versions to keep
 
     permissions:
       id-token: write
