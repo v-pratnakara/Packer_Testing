@@ -1,0 +1,49 @@
+trigger:
+  - main  # Runs when changes are pushed to the main branch
+
+pool:
+  vmImage: ubuntu-latest  # Runs on the latest Ubuntu agent
+
+variables:
+  AZURE_CONTAINER_REGISTRY: "youracr.azurecr.io"  # Replace with your ACR name
+  IMAGE_NAME: "myapp"  # Name of your Docker image
+  CONTAINER_APP_NAME: "my-container-app"  # Replace with your Azure Container App name
+  RESOURCE_GROUP: "my-resource-group"  # Replace with your Azure Resource Group
+
+steps:
+  #  Checkout the repo
+  - task: Checkout@v3
+    displayName: "Checkout Repository"
+
+  # Login to ACR using OIDC or Service Principal
+  - task: AzureCLI@2
+    displayName: "Login to ACR"
+    inputs:
+      azureSubscription: "<YOUR_AZURE_SERVICE_CONNECTION>"
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        az acr login --name $AZURE_CONTAINER_REGISTRY
+
+  # Build and Push Docker Image to ACR
+  - script: |
+      echo "Building Docker image..."
+      docker build -t $AZURE_CONTAINER_REGISTRY/$IMAGE_NAME:latest .
+      
+      echo "Pushing to ACR..."
+      docker push $AZURE_CONTAINER_REGISTRY/$IMAGE_NAME:latest
+    displayName: "Build & Push Docker Image"
+
+  #  Deploy the image to Azure Container Apps
+  - task: AzureCLI@2
+    displayName: "Deploy to Azure Container Apps"
+    inputs:
+      azureSubscription: "<YOUR_AZURE_SERVICE_CONNECTION>"
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        az containerapp update \
+          --name $CONTAINER_APP_NAME \
+          --resource-group $RESOURCE_GROUP \
+          --image $AZURE_CONTAINER_REGISTRY/$IMAGE_NAME:latest \
+          --registry-server $AZURE_CONTAINER_REGISTRY
