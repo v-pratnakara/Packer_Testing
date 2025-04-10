@@ -1,0 +1,205 @@
+name: Packer Build Windows Images
+run-name: Packer Build Windows Images
+
+on:
+  push:
+    branches:
+      - pk-test
+  workflow_dispatch:
+    inputs:
+      windows_version:
+        description: 'Windows version to build'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - '2019'
+          - '2022'
+      version_increment:
+        description: 'Release type'
+        required: false
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: read
+
+jobs:
+  set-matrix:
+    runs-on: wf-linux-packer
+    outputs:
+      os_matrix: ${{ steps.set_matrix.outputs.os_matrix }}
+    steps:
+      - id: set_matrix
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event.inputs.windows_version }}" == "all" ]]; then
+            echo "os_matrix={\"windows_version\":[\"2019\",\"2022\"]}" >> $GITHUB_OUTPUT
+          else
+            echo "os_matrix={\"windows_version\":[\"${{ github.event.inputs.windows_version }}\"]}" >> $GITHUB_OUTPUT
+          fi
+
+  determine-versions:
+    needs: [set-matrix]
+    runs-on: wf-linux-packer
+    strategy:
+      matrix: ${{ fromJson(needs.set-matrix.outputs.os_matrix) }}
+    outputs:
+      win_2019_new_version: ${{ steps.update_version.outputs.new_version_2019 }}
+      win_2022_new_version: ${{ steps.update_version.outputs.new_version_2022 }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Import Secrets JWT
+        id: jwt
+        uses: hashicorp/vault-action@v3.0.0
+        with:
+          url: ${{ env.VAULT_UAT_URL }}
+          method: jwt
+          path: jwt-giact
+          role: ${{ env.ROLE_NAME }}
+          namespace: ${{ env.NAMESPACE }}
+          exportEnv: true
+          exportToken: true
+          outputToken: true
+          secrets: |
+            azure/creds/az-qa-msac-sandbox-icg | AZURE_SECRET;
+
+      - name: Sleep 60 sec
+        run: sleep 60
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: >-
+            {
+              "clientId": "${{ env.AZURE_SECRET_CLIENT_ID }}",
+              "clientSecret": "${{ env.AZURE_SECRET_CLIENT_SECRET }}",
+              "subscriptionId": "${{ env.AZURE_SUBSCRIPTION_ID }}",
+              "tenantId": "${{ env.AZURE_TENANT_ID }}"
+            }
+
+      - name: Get current version
+        id: get_version
+        env:
+          WINDOWS_VERSION_SELECTED: ${{ matrix.windows_version }}
+        run: |
+          chmod +x ./windows/scripts/current-image-version.sh
+          ./windows/scripts/current-image-version.sh
+
+      - name: Set current version
+        id: set_version
+        run: |
+          echo "Selected windows version is ${{ matrix.windows_version }} and its current image version is $LATEST_IMAGE_VERSION"
+          if [[ "${{ matrix.windows_version }}" == "2019" ]]; then
+            echo "current_win_2019_version=$LATEST_IMAGE_VERSION" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.windows_version }}" == "2022" ]]; then
+            echo "current_win_2022_version=$LATEST_IMAGE_VERSION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update version
+        id: update_version
+        run: |
+          if [[ "${{ matrix.windows_version }}" == "2019" ]]; then
+            CURRENT_VERSION="${{ steps.set_version.outputs.current_win_2019_version }}"
+          elif [[ "${{ matrix.windows_version }}" == "2022" ]]; then
+            CURRENT_VERSION="${{ steps.set_version.outputs.current_win_2022_version }}"
+          fi
+
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            INCREMENT_TYPE="patch"
+          else
+            INCREMENT_TYPE="${{ github.event.inputs.version_increment }}"
+          fi
+
+          IFS='.' read MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+          if [[ "$INCREMENT_TYPE" == "major" ]]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif [[ "$INCREMENT_TYPE" == "minor" ]]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          if [[ "${{ matrix.windows_version }}" == "2019" ]]; then
+            echo "new_version_2019=$NEW_VERSION" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.windows_version }}" == "2022" ]]; then
+            echo "new_version_2022=$NEW_VERSION" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    needs: [set-matrix, determine-versions]
+    runs-on: wf-linux-packer
+    strategy:
+      matrix: ${{ fromJson(needs.set-matrix.outputs.os_matrix) }}
+    env:
+      BUILD_PATH: ${{ github.workspace }}/windows/
+    steps:
+      - name: Import Secrets JWT
+        uses: hashicorp/vault-action@v3.0.0
+        with:
+          url: ${{ env.VAULT_UAT_URL }}
+          method: jwt
+          path: jwt-giact
+          role: ${{ env.ROLE_NAME }}
+          namespace: ${{ env.NAMESPACE }}
+          exportEnv: true
+          exportToken: true
+          outputToken: true
+          secrets: |
+            azure/creds/az-qa-msac-sandbox-icg | AZURE_SECRET;
+
+      - name: Sleep 60 sec
+        run: sleep 60
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: >-
+            {
+              "clientId": "${{ env.AZURE_SECRET_CLIENT_ID }}",
+              "clientSecret": "${{ env.AZURE_SECRET_CLIENT_SECRET }}",
+              "subscriptionId": "${{ env.AZURE_SUBSCRIPTION_ID }}",
+              "tenantId": "${{ env.AZURE_TENANT_ID }}"
+            }
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v3.1.0
+
+      - name: Run packer init
+        working-directory: ${{ env.BUILD_PATH }}
+        run: packer init .
+
+      - name: Run packer fmt
+        working-directory: ${{ env.BUILD_PATH }}
+        run: packer fmt .
+
+      - name: Run packer validate
+        working-directory: ${{ env.BUILD_PATH }}
+        run: packer validate .
+
+      - name: Run packer build
+        id: build
+        working-directory: ${{ env.BUILD_PATH }}
+        run: |
+         if [[ "${{ matrix.windows_version }}" == "2019" ]]; then
+          echo "Build Windows version: ${{ matrix.windows_version }} : ${{ needs.determine-versions.outputs.win_2019_new_version }}"
+          packer build -var "windows_version=${{ matrix.windows_version }}" -var "dest_image_version=${{ needs.determine-versions.outputs.win_2019_new_version }}" -debug -force .
+         else
+          echo "Build Windows version: ${{ matrix.windows_version }} : ${{ needs.determine-versions.outputs.win_2022_new_version }}"
+          packer build -var "windows_version=${{ matrix.windows_version }}" -var "dest_image_version=${{ needs.determine-versions.outputs.win_2022_new_version }}" -debug -force .
+         fi
